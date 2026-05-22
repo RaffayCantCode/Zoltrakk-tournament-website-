@@ -1,167 +1,30 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Sign Up - Uni LoL Tournament</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .error {
-            color: #ff4d4d;
-            font-size: 0.85em;
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .success-text {
-            color: #2ecc71;
-            font-weight: bold;
-            text-align: center;
-            margin-top: 15px;
-        }
-
-        #strength-container {
-            background: #333;
-            height: 8px;
-            border-radius: 4px;
-            margin: 5px 0 15px;
-            overflow: hidden;
-        }
-
-        #strength-bar {
-            height: 100%;
-            width: 0%;
-            transition: 0.4s ease;
-        }
-    </style>
-</head>
-<body class="home">
-
-    <header>
-        <div class="left-logo">
-            <img src="images/logo.png" alt="Tournament Logo">
-        </div>
-        <nav>
-            <a href="index.html">Home</a>
-            <a href="schedule.html">Schedule</a>
-            <a href="players.html">Players</a>
-            <a href="team.html">My Team</a>
-            <a href="contact.html">Contact</a>
-            <a href="signup.html">Sign Up</a>
-            <a href="login.html">Login</a>
-        </nav>
-        <div class="right-logo">
-            <img src="images/uni-logo.png" alt="University Logo">
-        </div>
-    </header>
-
-    <section class="contact">
-        <div class="container">
-            <h2>Create Player Account</h2>
-            <form id="signupForm" novalidate>
-                <label>First Name:</label>
-                <input type="text" id="fName">
-                <span id="fNameErr" class="error"></span>
-
-                <label>Last Name:</label>
-                <input type="text" id="lName">
-                <span id="lNameErr" class="error"></span>
-
-                <label>Age:</label>
-                <input type="number" id="age">
-                <span id="ageErr" class="error"></span>
-
-                <label>Email Address:</label>
-                <input type="email" id="email">
-                <span id="emailFeedback"></span>
-
-                <label>Password:</label>
-                <input type="password" id="pass">
-                <div id="strength-container"><div id="strength-bar"></div></div>
-                <span id="passErr" class="error"></span>
-
-                <label>Confirm Password:</label>
-                <input type="password" id="confirmPass">
-                <span id="matchErr" class="error"></span>
-
-                <button type="submit" class="btn">Register</button>
-            </form>
-            <div id="finalMsg"></div>
-        </div>
-    </section>
-
-    <footer>
-        © 2026 University League Championship | All Rights Reserved
-    </footer>
-
-    <script>
-        const form = document.getElementById('signupForm');
-        const passInput = document.getElementById('pass');
-        const emailInput = document.getElementById('email');
-
-        // Email RegEx Validation
-        emailInput.addEventListener('input', () => {
-            const feedback = document.getElementById('emailFeedback');
-            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (re.test(emailInput.value)) {
-                feedback.innerHTML = "<span style='color:#2ecc71'>✅ Valid Email</span>";
-            } else {
-                feedback.innerHTML = "<span style='color:#ff4d4d'>❌ Invalid Email Format</span>";
-            }
-        });
-
-        // Password Strength Bar
-        passInput.addEventListener('input', () => {
-            const val = passInput.value;
-            const bar = document.getElementById('strength-bar');
-            let score = 0;
-
-            if (val.length >= 8) score++;
-            if (/[A-Z]/.test(val)) score++;
-            if (/[a-z]/.test(val)) score++;
-            if (/[0-9]/.test(val)) score++;
-            if (/[^A-Za-z0-9]/.test(val)) score++; // Special char
-
-            const colors = ['#ff4d4d', '#ffa64d', '#ffff4d', '#a6ff4d', '#2ecc71'];
-            bar.style.width = (score * 20) + "%";
-            bar.style.backgroundColor = colors[score - 1] || '#333';
-        });
-
-        // Submission Validation & Redirect
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            let valid = true;
-
-            // Reset Errors
-            document.querySelectorAll('.error').forEach(el => el.innerText = "");
-
-            if (!document.getElementById('fName').value) { document.getElementById('fNameErr').innerText = "First name is required"; valid = false; }
-            if (!document.getElementById('lName').value) { document.getElementById('lNameErr').innerText = "Last name is required"; valid = false; }
-            if (!document.getElementById('age').value) { document.getElementById('ageErr').innerText = "Age is required"; valid = false; }
-
-            // Check if email follows pattern on submit
-            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!re.test(emailInput.value)) {
-                valid = false;
-            }
-
-            if (passInput.value !== document.getElementById('confirmPass').value) {
-                document.getElementById('matchErr').innerText = "Passwords do not match!";
-                valid = false;
-            }
-
-            if (valid) {
-                // Save user data to browser's LocalStorage to simulate an actual database
-                localStorage.setItem('registeredEmail', emailInput.value);
-                localStorage.setItem('registeredPassword', passInput.value);
-
-                document.getElementById('finalMsg').innerHTML = "<p class='success-text'>Account Created Successfully! Redirecting to login...</p>";
-
-                // Redirect to login page after 1.5 seconds
-                setTimeout(() => {
-                    window.location.href = "login.html";
-                }, 1500);
-            }
-        });
-    </script>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sign Up</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header>
+  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a><a class="active" href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
+  <button class="theme-toggle" data-theme-toggle>Theme</button>
+</header>
+<section>
+  <div class="container card" style="padding:20px;max-width:700px">
+    <h2>Sign Up</h2>
+    <form id="signupForm" novalidate>
+      <div class="form-grid">
+        <div><label>First Name</label><input id="fName"><div class="error" id="fNameErr"></div></div>
+        <div><label>Last Name</label><input id="lName"><div class="error" id="lNameErr"></div></div>
+        <div><label>Age</label><input type="number" id="age"><div class="error" id="ageErr"></div></div>
+        <div><label>Email Address</label><input id="email"><div class="error" id="emailErr"></div></div>
+      </div>
+      <label>Password</label><input type="password" id="pass"><div class="strength"><div id="strengthBar" class="strength-bar"></div></div><div class="error" id="passErr"></div>
+      <label>Confirm Password</label><input type="password" id="confirmPass"><div class="error" id="matchErr"></div>
+      <button class="btn" type="submit">Submit</button>
+      <div id="signupSuccess" class="success"></div>
+    </form>
+  </div>
+</section>
+<footer>© 2026 Zoltrakk Tournament</footer>
+<script src="script.js"></script>
 </body>
 </html>

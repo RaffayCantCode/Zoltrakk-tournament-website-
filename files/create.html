@@ -1,241 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Host Tournament - Zoltraak Arena</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Create Tournament</title><link rel="stylesheet" href="style.css"></head>
 <body>
-
 <header>
-    <div class="logo-container">
-        <img src="images/logo.png" alt="Zoltraak" class="site-logo">
-        <span class="logo-text">Zoltraak</span>
-    </div>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="tournaments.html">Tournaments</a>
-        <a href="create.html" class="active">Host</a>
-        <a href="my-tournaments.html">My Events</a>
-        <a href="contact.html">Contact</a>
-    </nav>
-    <div class="user-badge" id="userBadge">
-        Guest
-    </div>
+  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a class="active" href="create.html">Create</a><a href="contact.html">Contact</a></nav>
+  <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
-
 <section>
-    <div class="container">
-        <h2>Create a Tournament</h2>
-        <p>Set up your own competition and invite players to battle!</p>
-        
-        <form id="createForm" class="registration-form">
-            <div class="tabs">
-                <button type="button" class="tab-btn active" onclick="switchTab('basic')">Basic Info</button>
-                <button type="button" class="tab-btn" onclick="switchTab('details')">Details</button>
-            </div>
-            
-            <div id="tabBasic">
-                <label>Tournament Name *</label>
-                <input type="text" id="tournamentName" placeholder="e.g., Zoltraak Weekly Championship" required>
-                
-                <label>Select Game *</label>
-                <div class="game-selector" id="gameSelector" style="margin: 0 0 20px 0;">
-                    <div class="game-card" data-game="lol" onclick="selectGame('lol')">
-                        <div style="font-size: 2rem;">⚔️</div>
-                        <h4>League of Legends</h4>
-                    </div>
-                    <div class="game-card" data-game="cs2" onclick="selectGame('cs2')">
-                        <div style="font-size: 2rem;">🔫</div>
-                        <h4>CS2</h4>
-                    </div>
-                    <div class="game-card" data-game="valorant" onclick="selectGame('valorant')">
-                        <div style="font-size: 2rem;">🎯</div>
-                        <h4>Valorant</h4>
-                    </div>
-                    <div class="game-card" data-game="overwatch" onclick="selectGame('overwatch')">
-                        <div style="font-size: 2rem;">🦸</div>
-                        <h4>Overwatch 2</h4>
-                    </div>
-                </div>
-                <input type="hidden" id="selectedGame" value="">
-                
-                <label>Mode *</label>
-                <select id="tournamentMode" required>
-                    <option value="">Select mode...</option>
-                    <option value="team">Team (5v5) - Bring your squad</option>
-                    <option value="solo">Solo / PvP - Go it alone</option>
-                </select>
-                
-                <label>Your Name / Gamertag *</label>
-                <input type="text" id="hostName" placeholder="Your name or team tag" required>
-                
-                <button type="button" class="btn" onclick="switchTab('details')">Next: Details</button>
-            </div>
-            
-            <div id="tabDetails" style="display: none;">
-                <label>Maximum Teams/Players</label>
-                <select id="maxTeams">
-                    <option value="4">4</option>
-                    <option value="8" selected>8</option>
-                    <option value="16">16</option>
-                    <option value="32">32</option>
-                </select>
-                
-                <label>Start Date</label>
-                <input type="datetime-local" id="startDate">
-                
-                <label>Prize Pool</label>
-                <input type="text" id="prizePool" placeholder="e.g., $500, Glory, Custom Items">
-                
-                <label>Tournament Format</label>
-                <select id="tournamentFormat">
-                    <option value="Single Elimination">Single Elimination</option>
-                    <option value="Double Elimination">Double Elimination</option>
-                    <option value="Round Robin">Round Robin</option>
-                    <option value="Swiss">Swiss System</option>
-                </select>
-                
-                <label>Description (optional)</label>
-                <textarea id="description" rows="3" placeholder="Any additional details about your tournament..."></textarea>
-                
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <button type="button" class="btn secondary" onclick="switchTab('basic')">Back</button>
-                    <button type="button" class="btn" onclick="createTournament()">Create Tournament</button>
-                </div>
-            </div>
-        </form>
-        
-        <div id="successMessage" class="success" style="display: none;">
-            <h3>🎉 Tournament Created!</h3>
-            <p>Your tournament is now live. Share the link with players!</p>
-            <div class="hero-buttons" style="justify-content: center;">
-                <a href="tournaments.html" class="btn">View Tournaments</a>
-                <a href="my-tournaments.html" class="btn outline">Manage My Tournaments</a>
-            </div>
+  <div class="container card" style="padding:20px">
+    <h2>Create a Tournament With Friends</h2>
+    <p>Pick a game and build your squad with game-specific roles so each tournament feels authentic.</p>
+    <form id="createTournamentForm">
+      <div class="form-grid">
+        <div>
+          <label>Tournament Name</label>
+          <input id="tournamentName" required placeholder="Friday Night Showdown">
         </div>
-    </div>
+        <div>
+          <label>Admin Name</label>
+          <input id="adminName" required placeholder="Your name">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Game</label>
+          <select id="tournamentGame" required>
+            <option value="">Select game</option>
+            <option value="League of Legends">League of Legends</option>
+            <option value="Valorant">Valorant</option>
+            <option value="CS2">CS2</option>
+            <option value="Overwatch">Overwatch</option>
+          </select>
+        </div>
+      </div>
+      <p id="gameSystemHint" class="success"></p>
+      <div id="lineupFields"></div>
+      <button class="btn" type="submit">Save Tournament</button>
+      <p id="createTournamentMsg" class="error"></p>
+    </form>
+  </div>
 </section>
-
-<footer>
-    <p>&copy; 2026 Zoltraak Arena. Built for competitive gaming.</p>
-</footer>
-
-<script>
-const API_BASE = "http://localhost:3000";
-let currentUser = JSON.parse(localStorage.getItem('zoltraak_user')) || { name: 'Guest', id: null };
-
-function init() {
-    updateUserBadge();
-    document.getElementById('hostName').value = currentUser.name !== 'Guest' ? currentUser.name : '';
-    
-    const defaultDate = new Date();
-    defaultDate.setDate(defaultDate.getDate() + 7);
-    defaultDate.setHours(20, 0, 0, 0);
-    document.getElementById('startDate').value = defaultDate.toISOString().slice(0, 16);
-}
-
-function updateUserBadge() {
-    const badge = document.getElementById('userBadge');
-    badge.textContent = currentUser.name !== 'Guest' ? currentUser.name : 'Guest';
-}
-
-function selectGame(game) {
-    document.querySelectorAll('.game-card').forEach(c => c.classList.remove('selected'));
-    document.querySelector(`[data-game="${game}"]`).classList.add('selected');
-    document.getElementById('selectedGame').value = game;
-}
-
-function switchTab(tab) {
-    document.getElementById('tabBasic').style.display = tab === 'basic' ? 'block' : 'none';
-    document.getElementById('tabDetails').style.display = tab === 'details' ? 'block' : 'none';
-    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', (tab === 'basic' && i === 0) || (tab === 'details' && i === 1));
-    });
-}
-
-async function createTournament() {
-    const name = document.getElementById('tournamentName').value.trim();
-    const game = document.getElementById('selectedGame').value;
-    const mode = document.getElementById('tournamentMode').value;
-    const hostName = document.getElementById('hostName').value.trim();
-    const maxTeams = parseInt(document.getElementById('maxTeams').value);
-    const startDate = document.getElementById('startDate').value;
-    const prizePool = document.getElementById('prizePool').value.trim() || 'TBD';
-    const format = document.getElementById('tournamentFormat').value;
-    const description = document.getElementById('description').value.trim();
-    
-    if (!name || !game || !mode || !hostName) {
-        alert('Please fill in all required fields');
-        return;
-    }
-    
-    const hostId = currentUser.id || Date.now().toString();
-    if (currentUser.name === 'Guest') {
-        currentUser.name = hostName;
-        currentUser.id = hostId;
-        currentUser.isHost = true;
-        localStorage.setItem('zoltraak_user', JSON.stringify(currentUser));
-    }
-    
-    try {
-        const res = await fetch(`${API_BASE}/tournaments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name,
-                game,
-                mode,
-                hostName,
-                hostId,
-                maxTeams,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
-                prizePool,
-                format,
-                description
-            })
-        });
-        
-        const result = await res.json();
-        
-        if (result.success) {
-            document.getElementById('createForm').style.display = 'none';
-            document.getElementById('successMessage').style.display = 'block';
-            updateUserBadge();
-        } else {
-            alert(result.message || 'Failed to create tournament');
-        }
-    } catch (e) {
-        alert('Error creating tournament. Is the server running?');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', init);
-</script>
-
-<div class="chatbot-toggle" onclick="toggleChatbot()">🤖</div>
-<div class="chatbot-container" id="chatbot">
-    <div class="chatbot-header"><h4>🤖 Zoltraak Helper</h4><button class="chatbot-close" onclick="toggleChatbot()">✕</button></div>
-    <div class="chatbot-messages" id="chatMessages">
-        <div class="chatbot-msg bot">Want to host a tournament? I can help! Just fill in the details - pick a game, choose mode, set max teams and date.<div class="quick-actions"><button class="quick-btn" onclick="askBot('Team mode')">Team Mode</button><button class="quick-btn" onclick="askBot('Solo mode')">Solo Mode</button></div></div>
-    </div>
-    <div class="chatbot-input">
-        <input type="text" id="chatInput" placeholder="Ask me anything..." onkeypress="handleChatKey(event)">
-        <button onclick="sendChat()">➤</button>
-    </div>
-</div>
-<script>
-function toggleChatbot() { document.getElementById('chatbot').classList.toggle('open'); }
-function askBot(q) {
-    document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg user">${q}</div>`;
-    let r = 'Fill out the form: name, game, mode (team/solo), max teams, date. Click Create and you become the host!';
-    if(q.toLowerCase().includes('team')) r = 'Team Mode: 5v5. Your team competes together. You can manage participants and create matches!';
-    if(q.toLowerCase().includes('solo')) r = 'Solo Mode: Individual players compete 1v1. Great for practice and casual tournaments!';
-    setTimeout(() => { document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg bot">${r}</div>`; document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight; }, 500);
-}
-function sendChat() { const v=document.getElementById('chatInput').value.trim(); if(v){askBot(v); document.getElementById('chatInput').value='';} }
-function handleChatKey(e) { if(e.key==='Enter') sendChat(); }
-</script>
+<footer>© 2026 Zoltrakk Tournament</footer>
+<script src="script.js"></script>
 </body>
 </html>

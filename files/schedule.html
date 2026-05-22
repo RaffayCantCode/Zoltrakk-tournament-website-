@@ -1,61 +1,26 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Schedule - Uni LoL Tournament</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Schedule</title><link rel="stylesheet" href="style.css"></head>
 <body>
-
 <header>
-
-    <div class="left-logo">
-        <img src="images/logo.png" alt="Tournament Logo">
-    </div>
-
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="schedule.html">Schedule</a>
-        <a href="players.html">Players</a>
-        <a href="team.html">My Team</a>
-        <a href="contact.html">Contact</a>
-    </nav>
-
-    <div class="right-logo">
-        <img src="images/uni-logo.png" alt="University Logo">
-    </div>
-
+  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <nav><a href="index.html">Home</a><a class="active" href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a></nav>
+  <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
-
-<section class="schedule">
+<section>
+  <div class="container">
     <h2>Tournament Schedule</h2>
-
-    <table>
-        <tr>
-            <th>Date</th>
-            <th>Match</th>
-            <th>Time</th>
-        </tr>
-        <tr>
-            <td>March 10</td>
-            <td>Team Alpha vs Team Beta</td>
-            <td>4:00 PM</td>
-        </tr>
-        <tr>
-            <td>March 12</td>
-            <td>Team Gamma vs Team Delta</td>
-            <td>4:00 PM</td>
-        </tr>
-        <tr class="final-match">
-            <td>March 20</td>
-            <td>Grand Final</td>
-            <td>6:00 PM</td>
-        </tr>
-    </table>
+    <div class="table-wrap card">
+      <table>
+        <tr><th>Date</th><th>Match</th><th>Time</th></tr>
+        <tr><td>June 10, 2026</td><td>Team Alpha vs Team Beta</td><td>4:00 PM</td></tr>
+        <tr><td>June 12, 2026</td><td>Team Gamma vs Team Delta</td><td>5:30 PM</td></tr>
+        <tr class="final-match"><td>June 20, 2026</td><td>Grand Final</td><td>7:00 PM</td></tr>
+      </table>
+    </div>
+  </div>
 </section>
-
-<footer>
-    <p>© 2026 University LoL Tournament</p>
-</footer>
-
+<footer>© 2026 Zoltrakk Tournament</footer>
+<script src="script.js"></script>
 </body>
 </html>
