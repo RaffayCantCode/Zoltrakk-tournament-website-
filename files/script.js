@@ -31,11 +31,11 @@ function initChatbot() {
   if (document.getElementById("chatbotBox")) return;
   const wrap = document.createElement("div");
   wrap.innerHTML = `
-    <button class="chatbot-toggle" id="chatbotToggle">AI</button>
+    <button class="chatbot-toggle" id="chatbotToggle">&#129302;</button>
     <div class="chatbot-box" id="chatbotBox">
       <div class="chatbot-head">
         <span>Zoltrakk Helper</span>
-        <button id="chatbotClose">x</button>
+        <button id="chatbotClose">&times;</button>
       </div>
       <div class="chatbot-messages" id="chatMessages">
         <div class="chat-msg bot">Welcome to Zoltrakk Arena. I can guide you with tournament creation, joining, and admin tools.</div>
@@ -104,26 +104,31 @@ function normalizeHeaderNav() {
   const user = getCurrentUser();
   const rawPage = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   const page = rawPage === "tournament.html" ? "tournaments.html" : rawPage;
-  const links = [
+
+  const mainLinks = [
     ["index.html", "Home"],
     ["schedule.html", "Schedule"],
     ["players.html", "Players"],
-    ["tournaments.html", "Tournaments"],
+    ["tournaments.html", "Browse"],
     ["create.html", "Create"],
-    ["team.html", "Team"],
-    ["my-tournaments.html", "My Tournaments"],
+    ["team.html", "Teams"],
     ["contact.html", "Support"]
   ];
 
-  let html = links
+  const mainHtml = mainLinks
     .map(([href, label]) => `<a href="${href}" class="${page === href ? "active" : ""}">${label}</a>`)
     .join("");
 
-  html += `<a href="signup.html" class="${page === "signup.html" ? "active" : ""}">Sign Up</a>`;
-  html += `<a href="login.html" class="${page === "login.html" ? "active" : ""}">Login</a>`;
-  if (user) html += `<a href="#" data-logout>Logout</a>`;
+  let authHtml = "";
+  if (user) {
+    authHtml += `<a href="my-tournaments.html" class="${page === "my-tournaments.html" ? "active" : ""}">My Hub</a>`;
+    authHtml += `<a href="#" data-logout>Logout</a>`;
+  } else {
+    authHtml += `<a href="signup.html" class="${page === "signup.html" ? "active" : ""}">Sign Up</a>`;
+    authHtml += `<a href="login.html" class="${page === "login.html" ? "active" : ""}">Login</a>`;
+  }
 
-  nav.innerHTML = html;
+  nav.innerHTML = `<div class="nav-main">${mainHtml}</div><div class="nav-auth">${authHtml}</div>`;
   const logout = nav.querySelector("[data-logout]");
   if (logout) {
     logout.onclick = (e) => {

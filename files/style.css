@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=Space+Grotesk:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 :root {
   --bg: #f5f2ff;
@@ -12,6 +12,8 @@
   --ok: #168658;
   --border: #e4d9ff;
   --shadow: 0 20px 45px rgba(69, 8, 201, 0.14);
+  --font-heading: "Oxanium", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
 }
 
 body[data-theme="dark"] {
@@ -32,7 +34,7 @@ body[data-theme="dark"] {
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-body);
   color: var(--text);
   background:
     radial-gradient(circle at 6% 8%, rgba(207, 2, 16, 0.16), transparent 33%),
@@ -46,9 +48,9 @@ header {
   position: sticky;
   top: 0;
   z-index: 60;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   padding: 14px 20px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
@@ -61,9 +63,11 @@ header {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: Orbitron, sans-serif;
+  font-family: var(--font-heading);
   font-weight: 800;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.3px;
+  font-size: 1.45rem;
+  white-space: nowrap;
 }
 
 .logo-wrap img {
@@ -75,9 +79,31 @@ header {
 
 nav {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  gap: 8px;
   flex-wrap: wrap;
-  justify-content: center;
+}
+
+.nav-main {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nav-auth {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.nav-auth a {
+  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
 }
 
 nav a {
@@ -85,9 +111,10 @@ nav a {
   color: var(--muted);
   padding: 8px 11px;
   border-radius: 999px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: .92rem;
   transition: .22s ease;
+  white-space: nowrap;
 }
 
 nav a.active,
@@ -108,7 +135,9 @@ nav a:hover {
   padding: 8px 12px;
   border-radius: 999px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: var(--font-body);
+  white-space: nowrap;
 }
 
 section { padding: 62px 18px; }
@@ -138,7 +167,7 @@ section { padding: 62px 18px; }
 }
 
 .hero h1 {
-  font-family: Orbitron, sans-serif;
+  font-family: var(--font-heading);
   font-size: clamp(2.2rem, 7vw, 4rem);
   line-height: 1.05;
   margin: 0 0 14px;
@@ -174,14 +203,14 @@ section { padding: 62px 18px; }
 }
 
 h2 {
-  font-family: Orbitron, sans-serif;
+  font-family: var(--font-heading);
   letter-spacing: .6px;
   font-size: clamp(1.3rem, 3vw, 2rem);
 }
 
 h3 {
   margin: 0 0 8px;
-  font-family: Orbitron, sans-serif;
+  font-family: var(--font-heading);
   font-size: 1.05rem;
 }
 
@@ -203,8 +232,18 @@ th {
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 780px) {
   .form-grid { grid-template-columns: 1fr; }
+  header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
   nav { justify-content: center; }
-  header { flex-wrap: wrap; }
+  .nav-main { justify-content: center; }
+  .nav-auth {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+  }
 }
 
 input, select, textarea {
@@ -214,7 +253,7 @@ input, select, textarea {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-body);
   font-size: .98rem;
 }
 
