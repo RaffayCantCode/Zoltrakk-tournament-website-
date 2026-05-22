@@ -1,3 +1,8 @@
 [build]
   publish = "files"
   functions = "netlify/functions"
+  command = "npm install --prefix netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["files/data.json"]

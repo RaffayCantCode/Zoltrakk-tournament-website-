@@ -8,7 +8,7 @@
 </head>
 <body>
 <header>
-  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <div class="logo-wrap"><img src="images/logo.svg" alt="Logo"><span>Zoltrakk Arena</span></div>
   <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Browse</a><a href="create.html">Create</a><a href="team.html">Teams</a><a href="contact.html">Support</a><a href="my-tournaments.html">My Hub</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
@@ -16,22 +16,12 @@
 <section>
   <div class="container">
     <h2>Tournament Schedule</h2>
-    <p>Track qualifiers, playoffs, and finals in one view.</p>
-    <div class="table-wrap card">
-      <table>
-        <tr><th>Date</th><th>Stage</th><th>Match</th><th>Time</th></tr>
-        <tr><td>June 10, 2026</td><td>Qualifier</td><td>Team Alpha vs Team Beta</td><td>4:00 PM</td></tr>
-        <tr><td>June 12, 2026</td><td>Qualifier</td><td>Team Gamma vs Team Delta</td><td>5:30 PM</td></tr>
-        <tr><td>June 15, 2026</td><td>Semi Final</td><td>Winner Q1 vs Winner Q2</td><td>6:00 PM</td></tr>
-        <tr class="final-match"><td>June 20, 2026</td><td>Grand Final</td><td>Finalists Battle</td><td>7:00 PM</td></tr>
-      </table>
-    </div>
+    <p>View real matchups from created tournaments. Tournament owners can edit dates, stages, and results below.</p>
+    <div id="scheduleRoot"></div>
   </div>
 </section>
 
-<footer>&copy; 2026 Zoltrakk Tournament</footer>
+<footer>&copy; 2026 Zoltrakk Tournament <span data-sync-badge></span></footer>
 <script src="script.js"></script>
 </body>
 </html>
-
-

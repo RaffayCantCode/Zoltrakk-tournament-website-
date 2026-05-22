@@ -85,8 +85,22 @@ This project is configured for Netlify:
 - Static publish folder: `files`
 - Netlify Functions folder: `netlify/functions`
 
-Included function:
-- `/.netlify/functions/players`
+Included functions:
+- `/.netlify/functions/players` — player catalog from `data.json`
+- `/.netlify/functions/store` — cloud database (Netlify Blobs) for users, tournaments, and participants
+
+Before deploy, install function dependencies:
+
+```bash
+cd netlify/functions
+npm install
+```
+
+The site keeps **localStorage** for fast offline use and syncs to **Netlify Blobs** when deployed so tournaments and logins work worldwide.
+
+## Schedule Page
+
+The Schedule page reads real matches from created tournaments (no placeholder rows). Tournament owners can edit date, stage, status, and winner; everyone can filter by tournament and view bracket cards.
 
 ## Project Goal
 

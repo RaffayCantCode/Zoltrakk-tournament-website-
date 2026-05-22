@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Zoltrakk Arena">
+  <defs>
+    <linearGradient id="zg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#cf0210"/>
+      <stop offset="100%" stop-color="#4508c9"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="56" fill="#1d1234" stroke="url(#zg)" stroke-width="6"/>
+  <path d="M38 78 L60 28 L82 78 Z" fill="url(#zg)"/>
+  <text x="60" y="98" text-anchor="middle" fill="#f6f0ff" font-family="Arial Black, sans-serif" font-size="16" font-weight="800">Z</text>
+</svg>

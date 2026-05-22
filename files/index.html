@@ -8,7 +8,7 @@
 </head>
 <body>
 <header>
-  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <div class="logo-wrap"><img src="images/logo.svg" alt="Logo"><span>Zoltrakk Arena</span></div>
   <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Browse</a><a href="create.html">Create</a><a href="team.html">Teams</a><a href="contact.html">Support</a><a href="my-tournaments.html">My Hub</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
@@ -24,19 +24,46 @@
   <div class="container">
     <h2>Supported Games</h2>
     <div class="games-grid">
-      <article class="game-tile"><div class="icon">LOL</div><h3>League of Legends</h3><p>Lane-based 5v5 system</p></article>
-      <article class="game-tile"><div class="icon">VLR</div><h3>Valorant</h3><p>Role-based tactical lineup</p></article>
-      <article class="game-tile"><div class="icon">CS2</div><h3>Counter-Strike 2</h3><p>Standard 5-player roster</p></article>
-      <article class="game-tile"><div class="icon">OW2</div><h3>Overwatch</h3><p>Tank / Damage / Support roles</p></article>
+      <article class="game-tile"><img class="game-icon" src="images/game-lol.svg" alt="League of Legends"><h3>League of Legends</h3><p>Lane-based 5v5 system</p></article>
+      <article class="game-tile"><img class="game-icon" src="images/game-valorant.svg" alt="Valorant"><h3>Valorant</h3><p>Role-based tactical lineup</p></article>
+      <article class="game-tile"><img class="game-icon" src="images/game-cs2.svg" alt="Counter-Strike 2"><h3>Counter-Strike 2</h3><p>Standard 5-player roster</p></article>
+      <article class="game-tile"><img class="game-icon" src="images/game-ow2.svg" alt="Overwatch"><h3>Overwatch</h3><p>Tank / Damage / Support roles</p></article>
     </div>
+  </div>
+</section>
+
+<section data-home-stats>
+  <div class="container card" style="padding:24px">
+    <h2>Live Arena Snapshot</h2>
+    <p>Tournament data syncs between your browser and the Netlify cloud database so friends worldwide can browse the same events.</p>
+    <div class="stats-row" id="homeStatsRow"></div>
   </div>
 </section>
 
 <section>
   <div class="container card" style="padding:24px">
     <h2>About Zoltrakk Tournament</h2>
-    <p>Zoltrakk Arena is built for students and friends who want a complete modern tournament platform: not just forms, but real tournament flow and admin control.</p>
-    <p><strong>Main Colors:</strong> #cf0210 and #4508c9</p>
+    <div class="about-grid">
+      <div>
+        <p><strong>Zoltrakk Arena</strong> is a student-built tournament platform for friends, school clubs, and online communities who want a real bracket workflow without complicated enterprise tools.</p>
+        <p>Create a tournament in minutes, share one link, let players join teams, and manage matchups from the admin panel. Every supported game uses role-accurate lineups so your event feels authentic.</p>
+        <ul class="about-points">
+          <li><strong>Create &amp; share:</strong> Host sets rules, game, and optional first team; everyone else joins through your tournament link.</li>
+          <li><strong>Team flow:</strong> Players can create a new squad or join an existing roster with captain/member roles.</li>
+          <li><strong>Schedule control:</strong> Auto-generate pairings, add manual matches, set dates/times, and update results on the Schedule page.</li>
+          <li><strong>Cloud + local:</strong> Accounts and tournaments save in your browser and sync to Netlify storage for worldwide access.</li>
+        </ul>
+      </div>
+      <div>
+        <p><strong>Brand colors</strong> used across the UI:</p>
+        <div class="color-swatches">
+          <span class="color-swatch" style="background:#cf0210" title="Primary red"></span>
+          <span class="color-swatch" style="background:#4508c9" title="Accent purple"></span>
+        </div>
+        <p style="margin-top:16px"><strong>Built for:</strong> casual scrims, class tournaments, weekend LAN parties, and recurring friend leagues.</p>
+        <p><strong>Pages included:</strong> Home, Schedule, Players, Browse, Create, Teams, Support, Sign Up, Login, and My Hub for creators.</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -52,9 +79,7 @@
   </div>
 </section>
 
-<footer>&copy; 2026 Zoltrakk Tournament</footer>
+<footer>&copy; 2026 Zoltrakk Tournament <span data-sync-badge></span></footer>
 <script src="script.js"></script>
 </body>
 </html>
-
-
