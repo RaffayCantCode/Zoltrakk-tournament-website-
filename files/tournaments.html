@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournaments - Zoltraak Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .filters-bar {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 40px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .filter-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .filter-group select {
+            margin: 0;
+            min-width: 180px;
+            padding: 10px 15px;
+        }
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo-container">
+        <img src="images/logo.png" alt="Zoltraak" class="site-logo">
+        <span class="logo-text">Zoltraak</span>
+    </div>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="tournaments.html" class="active">Tournaments</a>
+        <a href="create.html">Host</a>
+        <a href="my-tournaments.html">My Events</a>
+        <a href="contact.html">Contact</a>
+    </nav>
+    <div class="user-badge" id="userBadge">
+        Guest
+    </div>
+</header>
+
+<section>
+    <div class="container">
+        <h2>Active Tournaments</h2>
+        
+        <div class="filters-bar">
+            <div class="filter-group">
+                <label>Game</label>
+                <select id="filterGame">
+                    <option value="">All Games</option>
+                    <option value="lol">League of Legends</option>
+                    <option value="cs2">Counter-Strike 2</option>
+                    <option value="valorant">Valorant</option>
+                    <option value="overwatch">Overwatch 2</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Mode</label>
+                <select id="filterMode">
+                    <option value="">All Modes</option>
+                    <option value="team">Team (5v5)</option>
+                    <option value="solo">Solo / PvP</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="filterStatus">
+                    <option value="">All Status</option>
+                    <option value="open">Open</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="filter-buttons">
+                <button class="btn small" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn small secondary" onclick="clearFilters()">Clear</button>
+            </div>
+        </div>
+
+        <div class="tournament-grid" id="tournamentList">
+            <div class="empty-state">
+                <div class="icon">🎮</div>
+                <h3>Loading tournaments...</h3>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>&copy; 2026 Zoltraak Arena. Built for competitive gaming.</p>
+</footer>
+
+<div class="modal-overlay" id="joinModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 class="modal-title" id="joinModalTitle">Join Tournament</h3>
+            <button class="modal-close" onclick="closeJoinModal()">✕</button>
+        </div>
+        
+        <div id="joinFormTeam" style="display: none;">
+            <label>Team Name</label>
+            <input type="text" id="teamName" placeholder="Enter your team name">
+            
+            <div id="playerInputs">
+                <label>Team Players (5 players)</label>
+                <input type="text" class="p-name" placeholder="Player 1 Name (Captain)" style="margin-bottom: 10px;">
+                <input type="text" class="p-name" placeholder="Player 2 Name" style="margin-bottom: 10px;">
+                <input type="text" class="p-name" placeholder="Player 3 Name" style="margin-bottom: 10px;">
+                <input type="text" class="p-name" placeholder="Player 4 Name" style="margin-bottom: 10px;">
+                <input type="text" class="p-name" placeholder="Player 5 Name" style="margin-bottom: 10px;">
+            </div>
+            
+            <button class="btn" onclick="submitTeamJoin()">Join Tournament</button>
+        </div>
+        
+        <div id="joinFormSolo" style="display: none;">
+            <label>Your Name / Tag</label>
+            <input type="text" id="playerName" placeholder="Enter your gamertag">
+            
+            <button class="btn" onclick="submitSoloJoin()">Join Tournament</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:3000";
+let currentUser = JSON.parse(localStorage.getItem('zoltraak_user')) || { name: 'Guest', id: null };
+let selectedTournament = null;
+
+const GAME_INFO = {
+    'lol': { name: 'League of Legends', icon: '⚔️' },
+    'cs2': { name: 'Counter-Strike 2', icon: '🔫' },
+    'valorant': { name: 'Valorant', icon: '🎯' },
+    'overwatch': { name: 'Overwatch 2', icon: '🦸' }
+};
+
+function init() {
+    updateUserBadge();
+    loadTournaments();
+    
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode')) document.getElementById('filterMode').value = params.get('mode');
+    if (params.get('game')) document.getElementById('filterGame').value = params.get('game');
+}
+
+function updateUserBadge() {
+    const badge = document.getElementById('userBadge');
+    badge.textContent = currentUser.name !== 'Guest' ? currentUser.name : 'Guest';
+}
+
+async function loadTournaments() {
+    const list = document.getElementById('tournamentList');
+    
+    try {
+        const res = await fetch(`${API_BASE}/tournaments`);
+        const result = await res.json();
+        
+        if (!result.data || result.data.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">🏆</div>
+                    <h3>No tournaments available</h3>
+                    <p>Be the first to host a tournament!</p>
+                    <a href="create.html" class="btn" style="margin-top: 15px;">Create Tournament</a>
+                </div>`;
+            return;
+        }
+        
+        renderTournaments(result.data);
+    } catch (e) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">⚠️</div>
+                <h3>Unable to connect to server</h3>
+                <p>Make sure the backend is running on port 3000</p>
+            </div>`;
+    }
+}
+
+function renderTournaments(tournaments) {
+    const list = document.getElementById('tournamentList');
+    
+    list.innerHTML = tournaments.map(t => {
+        const game = GAME_INFO[t.game] || { name: t.game, icon: '🎮' };
+        const regCount = t.registrations?.length || 0;
+        const maxCount = t.mode === 'solo' ? t.maxPlayers : t.maxTeams;
+        const isFull = regCount >= maxCount;
+        const isOpen = t.status === 'open';
+        
+        return `
+            <div class="tournament-card">
+                <div class="tournament-banner">
+                    <span class="tournament-game-icon">${game.icon}</span>
+                </div>
+                <div class="tournament-body">
+                    <h3 class="tournament-title">${escapeHtml(t.name)}</h3>
+                    <div class="tournament-meta">
+                        <span class="meta-tag game">${game.name}</span>
+                        <span class="meta-tag mode">${t.mode === 'team' ? '5v5 Team' : 'Solo PvP'}</span>
+                        <span class="meta-tag status ${isOpen ? '' : 'closed'}">${t.status}</span>
+                    </div>
+                    <div class="tournament-info">
+                        <span>👤 Host: ${escapeHtml(t.hostName)}</span>
+                        <span>📅 ${new Date(t.startDate).toLocaleDateString()}</span>
+                        <span>🏆 ${regCount}/${maxCount} ${t.mode === 'team' ? 'Teams' : 'Players'}</span>
+                        <span>💰 Prize: ${t.prizePool}</span>
+                    </div>
+                    <div class="tournament-actions">
+                        ${isOpen ? 
+                            `<button class="btn small ${isFull ? 'secondary' : ''}" onclick="openJoinModal('${t.id}', '${t.mode}')" ${isFull ? 'disabled' : ''}>
+                                ${isFull ? 'Full' : 'Join Now'}
+                            </button>` :
+                            `<button class="btn small secondary" disabled>Registration Closed</button>`
+                        }
+                        <button class="btn small outline" onclick="viewTournament('${t.id}')">View Details</button>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function applyFilters() {
+    const game = document.getElementById('filterGame').value;
+    const mode = document.getElementById('filterMode').value;
+    const status = document.getElementById('filterStatus').value;
+    
+    let url = `${API_BASE}/tournaments?`;
+    if (game) url += `game=${game}&`;
+    if (mode) url += `mode=${mode}&`;
+    if (status) url += `status=${status}&`;
+    
+    fetch(url)
+        .then(r => r.json())
+        .then(result => renderTournaments(result.data || []));
+}
+
+function clearFilters() {
+    document.getElementById('filterGame').value = '';
+    document.getElementById('filterMode').value = '';
+    document.getElementById('filterStatus').value = '';
+    loadTournaments();
+}
+
+function openJoinModal(tournamentId, mode) {
+    selectedTournament = tournamentId;
+    
+    document.getElementById('joinFormTeam').style.display = mode === 'team' ? 'block' : 'none';
+    document.getElementById('joinFormSolo').style.display = mode === 'solo' ? 'block' : 'none';
+    document.getElementById('joinModal').classList.add('open');
+}
+
+function closeJoinModal() {
+    document.getElementById('joinModal').classList.remove('open');
+    selectedTournament = null;
+}
+
+async function submitTeamJoin() {
+    const teamName = document.getElementById('teamName').value.trim();
+    const playerInputs = document.querySelectorAll('.p-name');
+    const players = Array.from(playerInputs).map(i => ({ name: i.value.trim(), role: 'Player' })).filter(p => p.name);
+    
+    if (!teamName) { alert('Please enter a team name'); return; }
+    if (players.length < 1) { alert('Please add at least 1 player'); return; }
+    
+    try {
+        const res = await fetch(`${API_BASE}/tournaments/${selectedTournament}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ teamName, players })
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+            alert('Successfully joined the tournament!');
+            closeJoinModal();
+            loadTournaments();
+        } else {
+            alert(result.message || 'Failed to join');
+        }
+    } catch (e) {
+        alert('Error joining tournament');
+    }
+}
+
+async function submitSoloJoin() {
+    const playerName = document.getElementById('playerName').value.trim();
+    
+    if (!playerName) { alert('Please enter your name'); return; }
+    
+    try {
+        const res = await fetch(`${API_BASE}/tournaments/${selectedTournament}/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerName, playerId: currentUser.id || Date.now().toString() })
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+            alert('Successfully joined the tournament!');
+            closeJoinModal();
+            loadTournaments();
+        } else {
+            alert(result.message || 'Failed to join');
+        }
+    } catch (e) {
+        alert('Error joining tournament');
+    }
+}
+
+function viewTournament(id) {
+    window.location.href = `tournament.html?id=${id}`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+<div class="chatbot-toggle" onclick="toggleChatbot()">🤖</div>
+<div class="chatbot-container" id="chatbot">
+    <div class="chatbot-header">
+        <h4>🤖 Zoltraak Helper</h4>
+        <button class="chatbot-close" onclick="toggleChatbot()">✕</button>
+    </div>
+    <div class="chatbot-messages" id="chatMessages">
+        <div class="chatbot-msg bot">Hi! Need help finding a tournament? Try filtering by game or mode!<div class="quick-actions"><button class="quick-btn" onclick="askBot('Team mode')">Team Mode</button><button class="quick-btn" onclick="askBot('Solo mode')">Solo Mode</button><button class="quick-btn" onclick="askBot('Available games')">View Games</button></div></div>
+    </div>
+    <div class="chatbot-input">
+        <input type="text" id="chatInput" placeholder="Ask me anything..." onkeypress="handleChatKey(event)">
+        <button onclick="sendChat()">➤</button>
+    </div>
+</div>
+<script>
+function toggleChatbot() { document.getElementById('chatbot').classList.toggle('open'); }
+function askBot(q) {
+    document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg user">${q}</div>`;
+    let r = 'Browse tournaments, use filters to find what you want. Click "Join Now" to participate!';
+    if(q.toLowerCase().includes('team')) r = 'Team Mode is for 5-player groups. Form a squad, pick a team name, and compete together!';
+    if(q.toLowerCase().includes('solo')) r = 'Solo Mode is for individual players. Compete 1v1 against other players!';
+    if(q.toLowerCase().includes('game')) r = 'We have: LoL, CS2, Valorant, Overwatch - all 5v5 format!';
+    setTimeout(() => { document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg bot">${r}</div><div class="quick-actions"><button class="quick-btn" onclick="askBot('Team mode')">Team</button><button class="quick-btn" onclick="askBot('Solo mode')">Solo</button></div>`; document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight; }, 500);
+}
+function sendChat() { const v=document.getElementById('chatInput').value.trim(); if(v){askBot(v); document.getElementById('chatInput').value='';} }
+function handleChatKey(e) { if(e.key==='Enter') sendChat(); }
+</script>
+</body>
+</html>

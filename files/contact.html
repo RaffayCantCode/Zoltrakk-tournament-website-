@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - Zoltraak Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .contact-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 40px;
+        }
+        @media (max-width: 900px) {
+            .contact-grid { grid-template-columns: 1fr; }
+        }
+        .contact-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 35px;
+        }
+        .contact-card h3 {
+            font-size: 1.4rem;
+            color: var(--primary-purple);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .contact-info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .contact-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--primary-purple), var(--primary-red));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+        .contact-text h4 {
+            color: var(--text-light);
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        .contact-text p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+        .contact-text a {
+            color: var(--primary-purple);
+            text-decoration: none;
+        }
+        .contact-text a:hover {
+            color: var(--primary-red);
+        }
+        .map-container {
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        .map-container iframe {
+            width: 100%;
+            height: 280px;
+            border: none;
+        }
+        .message-form textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        .contact-office {
+            background: linear-gradient(135deg, rgba(104, 7, 222, 0.15), rgba(222, 7, 25, 0.1));
+            border: 1px solid var(--primary-purple);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+        .contact-office h4 {
+            color: var(--primary-red);
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo-container">
+        <img src="images/logo.png" alt="Zoltraak" class="site-logo">
+        <span class="logo-text">Zoltraak</span>
+    </div>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="tournaments.html">Tournaments</a>
+        <a href="create.html">Host</a>
+        <a href="my-tournaments.html">My Events</a>
+        <a href="contact.html" class="active">Contact</a>
+    </nav>
+    <div class="user-badge" id="userBadge">
+        Guest
+    </div>
+</header>
+
+<section>
+    <div class="container">
+        <h2>Get In Touch</h2>
+        <p>Have questions? Need support? We're here to help!</p>
+        
+        <div class="contact-grid">
+            <div class="contact-card">
+                <h3>📍 Our Office</h3>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">🏢</div>
+                    <div class="contact-text">
+                        <h4>Zoltraak Arena Headquarters</h4>
+                        <p>Air University Campus<br>Islamabad, Pakistan</p>
+                    </div>
+                </div>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">📧</div>
+                    <div class="contact-text">
+                        <h4>Email Us</h4>
+                        <p><a href="mailto:zoltrakarena@gmail.com">zoltrakarena@gmail.com</a></p>
+                    </div>
+                </div>
+                
+                <div class="contact-info-item">
+                    <div class="contact-icon">📱</div>
+                    <div class="contact-text">
+                        <h4>Follow Us</h4>
+                        <p>Coming Soon</p>
+                    </div>
+                </div>
+                
+                <div class="map-container">
+                    <iframe 
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3326.737839396468!3d73.13853519999999!3d33.68442049999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38c007a0e9813c4d%3A0x4a22db1e7e1eb!2sAir%20University%20Islamabad!5e0!3m2!1sen!2s!4v1704067200000!5m2!1sen!2s" 
+                        allowfullscreen="" 
+                        loading="lazy" 
+                        referrerpolicy="no-referrer-when-downgrade">
+                    </iframe>
+                </div>
+                
+                <div class="contact-office">
+                    <h4>📍 Located at Air University Islamabad</h4>
+                    <p style="margin: 0; font-size: 0.9rem;">Our team is based on campus - the hub of competitive gaming in Pakistan!</p>
+                </div>
+            </div>
+            
+            <div class="contact-card">
+                <h3>💬 Send Us a Message</h3>
+                <form class="message-form" onsubmit="sendMessage(event)">
+                    <label>Your Name</label>
+                    <input type="text" id="contactName" placeholder="Enter your name" required>
+                    
+                    <label>Your Email</label>
+                    <input type="email" id="contactEmail" placeholder="Enter your email" required>
+                    
+                    <label>Subject</label>
+                    <select id="contactSubject">
+                        <option value="">Select a topic...</option>
+                        <option value="general">General Inquiry</option>
+                        <option value="support">Technical Support</option>
+                        <option value="tournament">Tournament Question</option>
+                        <option value="partnership">Partnership</option>
+                        <option value="feedback">Feedback</option>
+                    </select>
+                    
+                    <label>Your Message</label>
+                    <textarea id="contactMessage" placeholder="Type your message here..." required></textarea>
+                    
+                    <button type="submit" class="btn">Send Message</button>
+                </form>
+                <div id="contactSuccess" class="success" style="display: none;">
+                    <h3>✅ Message Sent!</h3>
+                    <p>We'll get back to you as soon as possible.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>&copy; 2026 Zoltraak Arena. Built for competitive gaming.</p>
+</footer>
+
+<div class="chatbot-toggle" onclick="toggleChatbot()">🤖</div>
+<div class="chatbot-container" id="chatbot">
+    <div class="chatbot-header">
+        <h4>🤖 Zoltraak Helper</h4>
+        <button class="chatbot-close" onclick="toggleChatbot()">✕</button>
+    </div>
+    <div class="chatbot-messages" id="chatMessages">
+        <div class="chatbot-msg bot">
+            Hi! I'm here to help you understand how Zoltraak Arena works.
+            <div class="quick-actions">
+                <button class="quick-btn" onclick="askBot('How do I join a tournament?')">Join Tournament</button>
+                <button class="quick-btn" onclick="askBot('How do I host a tournament?')">Host Tournament</button>
+                <button class="quick-btn" onclick="askBot('What games are supported?')">Games</button>
+            </div>
+        </div>
+    </div>
+    <div class="chatbot-input">
+        <input type="text" id="chatInput" placeholder="Ask me anything..." onkeypress="handleChatKey(event)">
+        <button onclick="sendChat()">➤</button>
+    </div>
+</div>
+
+<script>
+const botResponses = {
+    'how do i join a tournament': 'To join a tournament: 1) Go to "Tournaments" page, 2) Browse available tournaments, 3) Click "Join Now" on your chosen tournament, 4) Enter your team name (for team mode) or your name (for solo mode), 5) Confirm and you\'re in!',
+    'how do i host a tournament': 'To host a tournament: 1) Click "Host" in the navigation, 2) Choose your game (LoL, CS2, Valorant, Overwatch), 3) Select mode (Team 5v5 or Solo PvP), 4) Fill in details like max teams, start date, prize pool, 5) Click "Create Tournament". You\'ll become the host with full management controls!',
+    'what games are supported': 'We support 4 popular games: ⚔️ League of Legends (5v5), 🔫 Counter-Strike 2 (5v5), 🎯 Valorant (5v5), and 🦸 Overwatch 2 (5v5). More games coming soon!',
+    'what is team mode': 'Team Mode is for groups of 5 players who want to compete together. You form a squad, register with a team name, and compete against other teams in 5v5 matches.',
+    'what is solo mode': 'Solo / PvP Mode is for individual players. You register yourself and compete one-on-one against other players. Great for practice and proving you\'re the best!',
+    'how do i become a host': 'Any user can become a host! Just go to the "Host" page, fill in the tournament details, and create your tournament. You\'ll automatically get host privileges to manage your tournament.',
+    'can i edit my tournament': 'Yes! As a tournament host, you can: change tournament status (open/in-progress/completed), view all participants, create matches between teams/players, and delete the tournament if needed. Go to "My Events" to manage your tournaments.',
+    'how does matching work': 'The host creates matches by pairing teams or players together. Once matched, you can report results and the winner advances in the bracket!',
+    'is it free': 'Yes! Zoltraak Arena is completely free to use. Create and join tournaments without any payment required.',
+    'default': 'I can help you with: joining tournaments, hosting tournaments, understanding game modes, becoming a host, and more. Type your question or click a quick action above!'
+};
+
+function toggleChatbot() {
+    document.getElementById('chatbot').classList.toggle('open');
+}
+
+function askBot(question) {
+    addUserMessage(question);
+    setTimeout(() => {
+        const response = getBotResponse(question.toLowerCase());
+        addBotMessage(response);
+    }, 500);
+}
+
+function getBotResponse(query) {
+    for (const key in botResponses) {
+        if (query.includes(key)) {
+            return botResponses[key];
+        }
+    }
+    return botResponses['default'];
+}
+
+function addUserMessage(msg) {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML += `<div class="chatbot-msg user">${msg}</div>`;
+    container.scrollTop = container.scrollHeight;
+}
+
+function addBotMessage(msg) {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML += `<div class="chatbot-msg bot">${msg}</div>`;
+    container.scrollTop = container.scrollHeight;
+}
+
+function sendChat() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    askBot(msg);
+    input.value = '';
+}
+
+function handleChatKey(e) {
+    if (e.key === 'Enter') sendChat();
+}
+
+function sendMessage(e) {
+    e.preventDefault();
+    const name = document.getElementById('contactName').value;
+    const email = document.getElementById('contactEmail').value;
+    const subject = document.getElementById('contactSubject').value;
+    const message = document.getElementById('contactMessage').value;
+    
+    const mailtoLink = `mailto:zoltrakarena@gmail.com?subject=${encodeURIComponent(subject || 'Contact from ' + name)}&body=${encodeURIComponent('Name: ' + name + '\nEmail: ' + email + '\n\nMessage:\n' + message)}`;
+    
+    window.location.href = mailtoLink;
+    
+    document.getElementById('contactSuccess').style.display = 'block';
+    e.target.reset();
+}
+</script>
+
+</body>
+</html>

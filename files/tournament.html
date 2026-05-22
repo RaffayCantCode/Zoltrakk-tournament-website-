@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Details - Zoltraak Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .tournament-header {
+            background: linear-gradient(135deg, rgba(104, 7, 222, 0.2), rgba(222, 7, 25, 0.1));
+            border: 1px solid var(--primary-purple);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            text-align: left;
+        }
+        .tournament-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        .tournament-stats {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--primary-red);
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .bracket-container {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 30px;
+            margin-top: 30px;
+        }
+        .bracket-container h3 {
+            color: var(--primary-purple);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo-container">
+        <img src="images/logo.png" alt="Zoltraak" class="site-logo">
+        <span class="logo-text">Zoltraak</span>
+    </div>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="tournaments.html">Tournaments</a>
+        <a href="create.html">Host</a>
+        <a href="my-tournaments.html">My Events</a>
+        <a href="contact.html">Contact</a>
+    </nav>
+    <div class="user-badge" id="userBadge">
+        Guest
+    </div>
+</header>
+
+<section>
+    <div class="container">
+        <div id="tournamentDetails">
+            <div class="empty-state">
+                <div class="icon">🎮</div>
+                <h3>Loading tournament...</h3>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>&copy; 2026 Zoltraak Arena. Built for competitive gaming.</p>
+</footer>
+
+<script>
+const API_BASE = "http://localhost:3000";
+let currentUser = JSON.parse(localStorage.getItem('zoltraak_user')) || { name: 'Guest', id: null };
+
+const GAME_INFO = {
+    'lol': { name: 'League of Legends', icon: '⚔️' },
+    'cs2': { name: 'Counter-Strike 2', icon: '🔫' },
+    'valorant': { name: 'Valorant', icon: '🎯' },
+    'overwatch': { name: 'Overwatch 2', icon: '🦸' }
+};
+
+async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const tournamentId = params.get('id');
+    
+    if (!tournamentId) {
+        window.location.href = 'tournaments.html';
+        return;
+    }
+    
+    loadTournament(tournamentId);
+}
+
+async function loadTournament(id) {
+    try {
+        const res = await fetch(`${API_BASE}/tournaments/${id}`);
+        const result = await res.json();
+        
+        if (!result.success) {
+            document.getElementById('tournamentDetails').innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">⚠️</div>
+                    <h3>Tournament not found</h3>
+                    <a href="tournaments.html" class="btn" style="margin-top: 15px;">Back to Tournaments</a>
+                </div>`;
+            return;
+        }
+        
+        renderTournament(result.data);
+    } catch (e) {
+        document.getElementById('tournamentDetails').innerHTML = `
+            <div class="empty-state">
+                <div class="icon">⚠️</div>
+                <h3>Error loading tournament</h3>
+            </div>`;
+    }
+}
+
+function renderTournament(t) {
+    const game = GAME_INFO[t.game] || { name: t.game, icon: '🎮' };
+    const regs = t.registrations || [];
+    const maxCount = t.mode === 'solo' ? t.maxPlayers : t.maxTeams;
+    const isHost = currentUser.id === t.hostId;
+    const isRegistered = regs.some(r => 
+        (t.mode === 'team' && r.teamName) || 
+        (t.mode === 'solo' && r.playerName === currentUser.name)
+    );
+    
+    document.getElementById('tournamentDetails').innerHTML = `
+        <div class="tournament-header">
+            <h1>${escapeHtml(t.name)}</h1>
+            <div class="tournament-meta" style="margin-bottom: 20px;">
+                <span class="meta-tag game">${game.icon} ${game.name}</span>
+                <span class="meta-tag mode">${t.mode === 'team' ? '5v5 Team' : 'Solo PvP'}</span>
+                <span class="meta-tag status ${t.status === 'open' ? '' : 'closed'}">${t.status}</span>
+            </div>
+            <p>${escapeHtml(t.description || 'No description provided')}</p>
+            
+            <div class="tournament-stats">
+                <div class="stat-item">
+                    <div class="stat-value">${regs.length}</div>
+                    <div class="stat-label">${t.mode === 'team' ? 'Teams' : 'Players'}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${maxCount}</div>
+                    <div class="stat-label">Max</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${t.prizePool}</div>
+                    <div class="stat-label">Prize</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${new Date(t.startDate).toLocaleDateString()}</div>
+                    <div class="stat-label">Start Date</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 25px;">
+                ${isHost ? 
+                    `<a href="my-tournaments.html" class="btn">Manage Tournament</a>` :
+                    t.status === 'open' && !isRegistered ?
+                    `<button class="btn" onclick="joinTournament('${t.id}')">Join Tournament</button>` :
+                    t.status === 'open' ?
+                    `<button class="btn outline" onclick="leaveTournament('${t.id}')">Leave Tournament</button>` :
+                    `<button class="btn secondary" disabled>Registration Closed</button>`
+                }
+                <a href="tournaments.html" class="btn secondary" style="margin-left: 10px;">All Tournaments</a>
+            </div>
+        </div>
+        
+        <div class="bracket-container">
+            <h3>👥 Registered ${t.mode === 'team' ? 'Teams' : 'Players'} (${regs.length}/${maxCount})</h3>
+            ${regs.length === 0 ? 
+                '<p style="color: var(--text-muted);">No registrations yet</p>' :
+                regs.map(r => `
+                    <div style="padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: var(--text-light); font-size: 1.1rem;">
+                                ${t.mode === 'team' ? '👥 ' + escapeHtml(r.teamName) : '🎯 ' + escapeHtml(r.playerName)}
+                            </strong>
+                            ${t.mode === 'team' ? `<span style="color: var(--text-muted); margin-left: 10px;">${r.players?.length || 0} players</span>` : ''}
+                        </div>
+                        <span style="color: var(--primary-purple); font-size: 0.85rem;">${new Date(r.joinedAt).toLocaleDateString()}</span>
+                    </div>
+                `).join('')
+            }
+        </div>
+        
+        ${(t.matches && t.matches.length > 0) ? `
+            <div class="bracket-container">
+                <h3>⚔️ Matches</h3>
+                ${t.matches.map(m => `
+                    <div style="padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${escapeHtml(m.player1)} <span style="color: var(--primary-red);">VS</span> ${escapeHtml(m.player2)}</span>
+                        <span style="color: ${m.winner ? 'var(--primary-purple)' : 'var(--text-muted)'};">
+                            ${m.winner ? '🏆 ' + m.winner : 'Pending'}
+                        </span>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+    `;
+}
+
+async function joinTournament(tournamentId) {
+    const mode = new URLSearchParams(window.location.search).get('mode') || 'team';
+    
+    if (mode === 'solo') {
+        const name = prompt('Enter your name/gamertag:');
+        if (!name) return;
+        
+        try {
+            const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerName: name, playerId: currentUser.id || Date.now().toString() })
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                alert('Successfully joined!');
+                loadTournament(tournamentId);
+            } else {
+                alert(result.message);
+            }
+        } catch (e) {
+            alert('Error joining');
+        }
+    } else {
+        const name = prompt('Enter team name:');
+        if (!name) return;
+        
+        try {
+            const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    teamName: name, 
+                    players: [{ name: currentUser.name || 'Captain', role: 'Captain' }]
+                })
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                alert('Successfully joined!');
+                loadTournament(tournamentId);
+            } else {
+                alert(result.message);
+            }
+        } catch (e) {
+            alert('Error joining');
+        }
+    }
+}
+
+async function leaveTournament(tournamentId) {
+    if (!confirm('Are you sure you want to leave this tournament?')) return;
+    
+    try {
+        await fetch(`${API_BASE}/tournaments/${tournamentId}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerName: currentUser.name })
+        });
+        
+        alert('Left tournament');
+        loadTournament(tournamentId);
+    } catch (e) {
+        alert('Error leaving');
+    }
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+<div class="chatbot-toggle" onclick="toggleChatbot()">🤖</div>
+<div class="chatbot-container" id="chatbot">
+    <div class="chatbot-header"><h4>🤖 Zoltraak Helper</h4><button class="chatbot-close" onclick="toggleChatbot()">✕</button></div>
+    <div class="chatbot-messages" id="chatMessages">
+        <div class="chatbot-msg bot">Viewing tournament details! Check the info, see who's joined, and join if available.<div class="quick-actions"><button class="quick-btn" onclick="askBot('How to join')">How to Join</button><button class="quick-btn" onclick="askBot('Solo vs Team')">Solo vs Team</button></div></div>
+    </div>
+    <div class="chatbot-input">
+        <input type="text" id="chatInput" placeholder="Ask me anything..." onkeypress="handleChatKey(event)">
+        <button onclick="sendChat()">➤</button>
+    </div>
+</div>
+<script>
+function toggleChatbot() { document.getElementById('chatbot').classList.toggle('open'); }
+function askBot(q) {
+    document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg user">${q}</div>`;
+    let r = 'Click "Join Tournament" to register. For team mode, enter team name. For solo, enter your gamertag.';
+    if(q.toLowerCase().includes('solo')) r = 'Solo mode: You compete individually. Great for 1v1 battles and proving your skill!';
+    if(q.toLowerCase().includes('team')) r = 'Team mode: Form a squad of 5. Coordinate with your team and compete together!';
+    setTimeout(() => { document.getElementById('chatMessages').innerHTML += `<div class="chatbot-msg bot">${r}</div>`; document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight; }, 500);
+}
+function sendChat() { const v=document.getElementById('chatInput').value.trim(); if(v){askBot(v); document.getElementById('chatInput').value='';} }
+function handleChatKey(e) { if(e.key==='Enter') sendChat(); }
+</script>
+</body>
+</html>

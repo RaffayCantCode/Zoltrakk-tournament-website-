@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Roster - Premium Uni League</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* =============================== */
+        /* PLAYERS PAGE — TOURNAMENT ROSTER */
+        /* =============================== */
+        .roster-section {
+            padding: 60px 20px 100px;
+        }
+
+        .roster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto 50px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .roster-header h2 {
+            margin-bottom: 0;
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+        }
+
+        .roster-header h2::after { display: none; }
+
+        .counter-badge {
+            background: linear-gradient(135deg, rgba(10, 200, 245, 0.15), rgba(10, 200, 245, 0.05));
+            border: 1px solid var(--cyan-accent);
+            color: var(--cyan-accent);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(10, 200, 245, 0.4);
+            box-shadow: 0 0 20px rgba(10, 200, 245, 0.1);
+        }
+
+        /* =============================== */
+        /* TEAM BLOCK                       */
+        /* =============================== */
+        .teams-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+
+        .team-block {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .team-block:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), 0 0 40px rgba(200, 170, 110, 0.08);
+        }
+
+        .team-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 22px 35px;
+            background: linear-gradient(135deg, rgba(200, 170, 110, 0.12), rgba(200, 170, 110, 0.04));
+            border-bottom: 1px solid var(--glass-border);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .team-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .team-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid var(--gold-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--gold-main);
+            background: rgba(200, 170, 110, 0.1);
+            flex-shrink: 0;
+        }
+
+        .team-name-display {
+            font-family: var(--font-heading);
+            font-size: clamp(1.6rem, 3vw, 2.2rem);
+            font-weight: 800;
+            color: var(--gold-main);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(200, 170, 110, 0.4);
+        }
+
+        .team-badge {
+            font-family: var(--font-heading);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 5px 14px;
+            border-radius: 20px;
+            color: var(--text-muted);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        /* =============================== */
+        /* PLAYER CARDS GRID               */
+        /* =============================== */
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0;
+        }
+
+        @media (max-width: 900px) {
+            .players-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .players-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .player-card-v2 {
+            padding: 28px 20px;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+            position: relative;
+            transition: background 0.3s ease;
+        }
+
+        .player-card-v2:last-child {
+            border-right: none;
+        }
+
+        .player-card-v2:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .player-card-v2.captain-slot {
+            background: rgba(10, 200, 245, 0.04);
+            border-right-color: rgba(10, 200, 245, 0.1);
+        }
+
+        .player-card-v2.captain-slot:hover {
+            background: rgba(10, 200, 245, 0.07);
+        }
+
+        /* Role Icon Circle */
+        .role-icon-wrap {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin: 0 auto 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            position: relative;
+        }
+
+        .captain-slot .role-icon-wrap {
+            box-shadow: 0 0 20px rgba(10, 200, 245, 0.3);
+        }
+
+        .captain-crown {
+            position: absolute;
+            top: -10px;
+            right: -6px;
+            font-size: 0.9rem;
+            filter: drop-shadow(0 0 4px rgba(200, 170, 110, 0.8));
+        }
+
+        .player-card-name {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-light);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .captain-slot .player-card-name {
+            color: var(--cyan-accent);
+        }
+
+        .player-card-id {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .player-card-role {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
+        /* Role Color Themes */
+        .role-top    { color: #e74c3c; background: rgba(231, 76, 60, 0.12);  border: 1px solid rgba(231, 76, 60, 0.3);  }
+        .role-jungle { color: #2ecc71; background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.3); }
+        .role-mid    { color: #9b59b6; background: rgba(155, 89, 182, 0.12); border: 1px solid rgba(155, 89, 182, 0.3); }
+        .role-adc    { color: #f39c12; background: rgba(243, 156, 18, 0.12); border: 1px solid rgba(243, 156, 18, 0.3); }
+        .role-support{ color: #3498db; background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.3); }
+
+        .icon-bg-top     { background: rgba(231, 76, 60, 0.15);  border: 1.5px solid rgba(231, 76, 60, 0.35); }
+        .icon-bg-jungle  { background: rgba(46, 204, 113, 0.15); border: 1.5px solid rgba(46, 204, 113, 0.35); }
+        .icon-bg-mid     { background: rgba(155, 89, 182, 0.15); border: 1.5px solid rgba(155, 89, 182, 0.35); }
+        .icon-bg-adc     { background: rgba(243, 156, 18, 0.15); border: 1.5px solid rgba(243, 156, 18, 0.35); }
+        .icon-bg-support { background: rgba(52, 152, 219, 0.15); border: 1.5px solid rgba(52, 152, 219, 0.35); }
+
+        /* =============================== */
+        /* EMPTY STATE                     */
+        /* =============================== */
+        .empty-state {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 80px 40px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+        }
+
+        .empty-state .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            filter: grayscale(0.3);
+        }
+
+        .empty-state h3 {
+            font-size: 1.8rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+
+        /* Admin bar */
+        .admin-bar {
+            max-width: 1200px;
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-wipe {
+            background: rgba(255, 77, 77, 0.08);
+            border: 1px solid rgba(255, 77, 77, 0.4);
+            color: #ff4d4d;
+            padding: 8px 18px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn-wipe:hover {
+            background: rgba(255, 77, 77, 0.2);
+            box-shadow: 0 0 15px rgba(255, 77, 77, 0.3);
+        }
+    </style>
+</head>
+<body class="home">
+
+    <header>
+        <div class="left-logo"><img src="images/logo.png" alt="Logo"></div>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="schedule.html">Schedule</a>
+            <a href="players.html" class="active">Players</a>
+            <a href="team.html">My Team</a>
+            <a href="contact.html">Contact</a>
+        </nav>
+        <div class="right-logo"><img src="images/uni-logo.png" alt="Uni Logo"></div>
+    </header>
+
+    <section class="roster-section">
+
+        <div class="roster-header">
+            <h2>Tournament Roster</h2>
+            <span id="teamCount" class="counter-badge">⚔️ 0 / 10 Teams Registered</span>
+        </div>
+
+        <div class="admin-bar">
+            <button class="btn-wipe" onclick="clearAllTeams()">🗑 Wipe All Data</button>
+        </div>
+
+        <div class="teams-container" id="participantsList"></div>
+
+    </section>
+
+    <footer>© 2026 University League Championship | All Rights Reserved</footer>
+
+    <script src="script.js"></script>
+
+    <script>
+        /* Role config: emoji, CSS class suffix */
+        const ROLE_CONFIG = {
+            'Top':     { icon: '🛡️', cls: 'top' },
+            'Jungle':  { icon: '🌲', cls: 'jungle' },
+            'Mid':     { icon: '⚡', cls: 'mid' },
+            'ADC':     { icon: '🎯', cls: 'adc' },
+            'Support': { icon: '💙', cls: 'support' },
+        };
+
+        function getRoleCfg(role) {
+            return ROLE_CONFIG[role] || { icon: '❓', cls: 'mid' };
+        }
+
+        const API_BASE = "http://localhost:3000";
+
+        async function fetchAPI(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`);
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, data: [] };
+            }
+        }
+
+        async function loadTeams() {
+            const list = document.getElementById('participantsList');
+            const counter = document.getElementById('teamCount');
+            if (!list || !counter) return;
+
+            const result = await fetchAPI('/teams');
+            const teams = result?.data || [];
+
+            counter.innerText = `⚔️ ${teams.length} / 10 Teams Registered`;
+            list.innerHTML = '';
+
+            if (teams.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🏟️</div>
+                        <h3>No Squads Have Locked In Yet</h3>
+                        <p>Be the first to claim your spot in the tournament.</p>
+                        <a href="contact.html" class="btn" style="margin-top: 10px;">Register Your Team</a>
+                    </div>`;
+                return;
+            }
+
+            teams.forEach((team, tIndex) => {
+                const block = document.createElement('div');
+                block.className = 'team-block';
+
+                const playerCards = team.players.map((p, pIndex) => {
+                    const cfg = getRoleCfg(p.role);
+                    const isCap = pIndex === 0;
+                    return `
+                        <div class="player-card-v2 ${isCap ? 'captain-slot' : ''}">
+                            <div class="role-icon-wrap icon-bg-${cfg.cls}">
+                                ${cfg.icon}
+                                ${isCap ? '<span class="captain-crown">👑</span>' : ''}
+                            </div>
+                            <div class="player-card-name">${escHtml(p.name)}</div>
+                            <div class="player-card-id">${escHtml(p.id)}</div>
+                            <div>
+                                <span class="player-card-role role-${cfg.cls}">${cfg.icon} ${p.role}</span>
+                            </div>
+                        </div>`;
+                }).join('');
+
+                block.innerHTML = `
+                    <div class="team-banner">
+                        <div class="team-banner-left">
+                            <div class="team-number">#${tIndex + 1}</div>
+                            <div class="team-name-display">${escHtml(team.teamName)}</div>
+                        </div>
+                        <span class="team-badge">5 Players</span>
+                    </div>
+                    <div class="players-grid">${playerCards}</div>`;
+
+                list.appendChild(block);
+            });
+        }
+
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.appendChild(document.createTextNode(str));
+            return d.innerHTML;
+        }
+
+        /* Re-run on load */
+        document.addEventListener('DOMContentLoaded', loadTeams);
+    </script>
+</body>
+</html>
