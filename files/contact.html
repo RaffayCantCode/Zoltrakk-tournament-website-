@@ -1,28 +1,56 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Contact</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a class="active" href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a class="active" href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
-  <div class="container card" style="padding:20px">
-    <h2>Contact Form</h2>
-    <form id="contactForm">
-      <div class="form-grid">
-        <div><label>Full Name *</label><input required></div>
-        <div><label>Email *</label><input type="email" required></div>
+  <div class="container" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+    <div class="card" style="padding:20px">
+      <h2>Support Contact</h2>
+      <p>Need help with tournament links, login, or team joins? Send us a message and we will guide you.</p>
+      <form id="contactForm">
+        <div class="form-grid">
+          <div><label>Full Name *</label><input required></div>
+          <div><label>Email *</label><input type="email" required></div>
+        </div>
+        <label>Date of Birth *</label><input type="date" required>
+        <label>Message *</label><textarea required placeholder="Tell us how we can help..."></textarea>
+        <button class="btn" type="submit">Send Message</button>
+        <button class="btn alt" type="reset">Clear Form</button>
+      </form>
+      <p id="contactStatus" class="success"></p>
+    </div>
+
+    <div class="card" style="padding:20px">
+      <h2>Our Location</h2>
+      <p><strong>Zoltrakk Arena Support Desk</strong><br>Air University Campus, Islamabad, Pakistan</p>
+      <p><strong>Email:</strong> support@zoltrakkarena.com<br><strong>Hours:</strong> Mon-Sat, 10:00 AM - 7:00 PM</p>
+      <div style="border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+        <iframe
+          title="Zoltrakk Arena Location"
+          src="https://www.google.com/maps?q=Air+University+Islamabad&output=embed"
+          width="100%"
+          height="260"
+          style="border:0"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
       </div>
-      <label>Date of Birth *</label><input type="date" required>
-      <label>Message *</label><textarea required></textarea>
-      <button class="btn" type="submit">Send Message</button>
-      <button class="btn alt" type="reset">Clear Form</button>
-    </form>
+    </div>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

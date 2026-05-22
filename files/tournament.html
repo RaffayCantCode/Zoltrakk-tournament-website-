@@ -1,16 +1,29 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tournament Details</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tournament Details - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a class="active" href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
-  <div class="container" id="tournamentDetailRoot"></div>
+  <div class="container">
+    <div class="card" style="padding:14px;margin-bottom:14px">
+      <h2 style="margin-top:0">Tournament Command Center</h2>
+      <p>Share this page link with friends. They can create a new team or join one. Admin can manage teams and matchups here.</p>
+    </div>
+    <div id="tournamentDetailRoot"></div>
+  </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

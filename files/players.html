@@ -1,30 +1,38 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Players</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Players - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a class="active" href="players.html">Players</a><a href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a class="active" href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
   <div class="container">
     <h2>Player Cards</h2>
+    <p>Search and filter by name, game, and rank with live updates.</p>
     <div class="player-controls">
       <input id="searchPlayer" placeholder="Search player by name">
-      <select id="filterGame"><option value="">All Games</option><option>Valorant</option><option>CS2</option><option>League of Legends</option></select>
+      <select id="filterGame"><option value="">All Games</option><option>Valorant</option><option>CS2</option><option>League of Legends</option><option>Overwatch</option></select>
       <select id="filterRank"><option value="">All Ranks</option><option>Diamond</option><option>Platinum</option><option>Gold</option><option>Silver</option></select>
     </div>
     <div id="playerGrid" class="player-grid"></div>
   </div>
 </section>
+
 <section>
   <div class="container card" style="padding:20px">
     <h2>Tournament Registration (Max 10)</h2>
     <form id="regForm">
       <div class="form-grid">
         <div><label>Name</label><input id="regName" required></div>
-        <div><label>Game</label><select id="regGame"><option>Valorant</option><option>CS2</option><option>League of Legends</option></select></div>
+        <div><label>Game</label><select id="regGame"><option>Valorant</option><option>CS2</option><option>League of Legends</option><option>Overwatch</option></select></div>
       </div>
       <button class="btn" type="submit">Register</button>
       <p id="regMsg" class="error"></p>
@@ -33,7 +41,8 @@
     <ul id="participantsList" class="participants"></ul>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

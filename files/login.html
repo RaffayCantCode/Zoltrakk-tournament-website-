@@ -1,21 +1,28 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a><a href="signup.html">Sign Up</a><a class="active" href="login.html">Login</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a class="active" href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
-  <div class="container card" style="padding:20px;max-width:600px">
+  <div class="container card" style="padding:20px;max-width:620px">
     <h2>Login</h2>
+    <p>Login to manage your tournaments and access your history dashboard.</p>
     <form id="loginForm" novalidate>
       <label>Email Address</label><input id="lEmail"><div class="error" id="eErr"></div>
       <label>Password</label>
       <div style="position:relative">
         <input id="lPass" type="password">
-        <button type="button" id="eyeBtn" style="position:absolute;right:8px;top:8px;border:none;background:transparent;cursor:pointer">🙈</button>
+        <button type="button" id="eyeBtn" style="position:absolute;right:8px;top:8px;border:none;background:transparent;cursor:pointer">&#128584;</button>
       </div>
       <div class="error" id="pErr"></div>
       <button class="btn" type="submit">Login</button>
@@ -23,7 +30,8 @@
     </form>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

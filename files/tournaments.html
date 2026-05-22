@@ -1,22 +1,35 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Tournaments</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tournaments - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a class="active" href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a class="active" href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
   <div class="container card" style="padding:20px">
     <h2>Tournaments Hub</h2>
-    <p>Create fun friend tournaments with game-specific team systems. More game support coming soon.</p>
+    <p>Create, share, and manage competitive brackets with friends. Use game-specific roles for authentic tournaments.</p>
     <a class="btn" href="create.html">Create Tournament</a>
-    <a class="btn alt" href="players.html">Open Players</a>
-    <div data-created-tournaments style="margin-top:16px"></div>
+    <a class="btn alt" href="players.html">Browse Players</a>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<section>
+  <div class="container">
+    <h2>Live Tournament List</h2>
+    <div data-created-tournaments></div>
+  </div>
+</section>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

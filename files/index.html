@@ -3,29 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zoltrakk Tournament</title>
+  <title>Zoltrakk Arena</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-    <nav>
-      <a class="active" href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a>
-    </nav>
-    <button class="theme-toggle" data-theme-toggle>Theme</button>
-  </header>
-  <section class="hero">
-    <h1>University Gaming Tournament</h1>
-    <p>Compete, register, and track top players across multiple games.</p>
-    <a class="btn" href="players.html">View Players</a>
-  </section>
-  <section>
-    <div class="container card" style="padding:20px">
-      <h2>About Tournament</h2>
-      <p>This multi-section website includes schedule, player cards, registration, and contact support.</p>
+<header>
+  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <nav><a class="active" href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
+  <button class="theme-toggle" data-theme-toggle>Theme</button>
+</header>
+
+<section class="hero">
+  <h1>Zoltrakk Arena</h1>
+  <p>The complete friend-tournament website. Create events, share links, run teams, and control matches with game-specific systems.</p>
+  <a class="btn" href="create.html">Create Tournament</a>
+  <a class="btn alt" href="tournaments.html">Browse Tournaments</a>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Supported Games</h2>
+    <div class="games-grid">
+      <article class="game-tile"><div class="icon">LOL</div><h3>League of Legends</h3><p>Lane-based 5v5 system</p></article>
+      <article class="game-tile"><div class="icon">VLR</div><h3>Valorant</h3><p>Role-based tactical lineup</p></article>
+      <article class="game-tile"><div class="icon">CS2</div><h3>Counter-Strike 2</h3><p>Standard 5-player roster</p></article>
+      <article class="game-tile"><div class="icon">OW2</div><h3>Overwatch</h3><p>Tank / Damage / Support roles</p></article>
     </div>
-  </section>
-  <footer>© 2026 Zoltrakk Tournament</footer>
-  <script src="script.js"></script>
+  </div>
+</section>
+
+<section>
+  <div class="container card" style="padding:24px">
+    <h2>About Zoltrakk Tournament</h2>
+    <p>Zoltrakk Arena is built for students and friends who want a complete modern tournament platform: not just forms, but real tournament flow and admin control.</p>
+    <p><strong>Main Colors:</strong> #cf0210 and #4508c9</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Why It Feels Complete</h2>
+    <div class="feature-list">
+      <article class="feature-item"><h3>Shareable Links</h3><p>Host once and share a direct tournament page with all friends.</p></article>
+      <article class="feature-item"><h3>Team Actions</h3><p>Players can create new teams or join teams already listed.</p></article>
+      <article class="feature-item"><h3>Admin Controls</h3><p>Delete teams, reorder teams, auto-match, or manually set matchups.</p></article>
+      <article class="feature-item"><h3>My Tournament History</h3><p>Logged-in creators can track and clean completed tournaments.</p></article>
+    </div>
+  </div>
+</section>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
+<script src="script.js"></script>
 </body>
 </html>

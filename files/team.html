@@ -1,20 +1,36 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>My Team</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team Center - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a class="active" href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
   <div class="container card" style="padding:20px">
-    <h2>My Team</h2>
-    <p>Team registration and participant management are available on the Players page with localStorage persistence.</p>
-    <a class="btn" href="players.html">Manage Participants</a>
+    <h2>Team Center</h2>
+    <p>Use Team Center to understand role structures before creating or joining tournament teams.</p>
+    <div class="feature-list">
+      <article class="feature-item"><h3>League Team</h3><p>Top, Jungle, Mid, ADC, Support.</p></article>
+      <article class="feature-item"><h3>Valorant Team</h3><p>Duelist, Controller, Initiator, Sentinel, Flex.</p></article>
+      <article class="feature-item"><h3>CS2 Team</h3><p>Standard 5-player tactical lineup.</p></article>
+      <article class="feature-item"><h3>Overwatch Team</h3><p>Tank, Damage, Damage, Support, Support.</p></article>
+    </div>
+    <div style="margin-top:14px">
+      <a class="btn" href="create.html">Create New Tournament</a>
+      <a class="btn alt" href="tournaments.html">Join Existing Tournament</a>
+    </div>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

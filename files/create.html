@@ -1,47 +1,67 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Create Tournament</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Tournament - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a class="active" href="create.html">Create</a><a href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a class="active" href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
-  <div class="container card" style="padding:20px">
-    <h2>Create a Tournament With Friends</h2>
-    <p>Pick a game and build your squad with game-specific roles so each tournament feels authentic.</p>
-    <form id="createTournamentForm">
-      <div class="form-grid">
-        <div>
-          <label>Tournament Name</label>
-          <input id="tournamentName" required placeholder="Friday Night Showdown">
+  <div class="container" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+    <div class="card" style="padding:20px">
+      <h2>Create Tournament With Friends</h2>
+      <p>Build a tournament, become admin, then share the link so players can create or join teams.</p>
+      <form id="createTournamentForm">
+        <div class="form-grid">
+          <div>
+            <label>Tournament Name</label>
+            <input id="tournamentName" required placeholder="Friday Night Showdown">
+          </div>
+          <div>
+            <label>Admin Name</label>
+            <input id="adminName" required placeholder="Your name">
+          </div>
         </div>
-        <div>
-          <label>Admin Name</label>
-          <input id="adminName" required placeholder="Your name">
+        <div class="form-grid">
+          <div>
+            <label>Game</label>
+            <select id="tournamentGame" required>
+              <option value="">Select game</option>
+              <option value="League of Legends">League of Legends</option>
+              <option value="Valorant">Valorant</option>
+              <option value="CS2">CS2</option>
+              <option value="Overwatch">Overwatch</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="form-grid">
-        <div>
-          <label>Game</label>
-          <select id="tournamentGame" required>
-            <option value="">Select game</option>
-            <option value="League of Legends">League of Legends</option>
-            <option value="Valorant">Valorant</option>
-            <option value="CS2">CS2</option>
-            <option value="Overwatch">Overwatch</option>
-          </select>
-        </div>
-      </div>
-      <p id="gameSystemHint" class="success"></p>
-      <div id="lineupFields"></div>
-      <button class="btn" type="submit">Save Tournament</button>
-      <p id="createTournamentMsg" class="error"></p>
-    </form>
+        <p id="gameSystemHint" class="success"></p>
+        <div id="lineupFields"></div>
+        <button class="btn" type="submit">Save Tournament</button>
+        <p id="createTournamentMsg" class="error"></p>
+      </form>
+    </div>
+
+    <div class="card" style="padding:20px">
+      <h2>Game Role Systems</h2>
+      <ul>
+        <li><strong>League:</strong> Top, Jungle, Mid, ADC, Support</li>
+        <li><strong>Valorant:</strong> Duelist, Controller, Initiator, Sentinel, Flex</li>
+        <li><strong>CS2:</strong> Standard 5-player slots</li>
+        <li><strong>Overwatch:</strong> Tank, Damage, Damage, Support, Support</li>
+      </ul>
+      <p>After creation, copy the generated link and share it with your friends.</p>
+    </div>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>

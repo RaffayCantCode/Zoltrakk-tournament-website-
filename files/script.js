@@ -6,13 +6,11 @@ const CURRENT_USER_KEY = "zoltrakk_current_user";
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
-
 function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); }
 function setUsers(v) { localStorage.setItem(USERS_KEY, JSON.stringify(v)); }
 function getCurrentUser() { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null"); }
 function setCurrentUser(v) { localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(v)); }
 function clearCurrentUser() { localStorage.removeItem(CURRENT_USER_KEY); }
-
 function getTournaments() { return JSON.parse(localStorage.getItem(TOURNAMENTS_KEY) || "[]"); }
 function setTournaments(v) { localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(v)); }
 
@@ -20,25 +18,119 @@ function initTheme() {
   const saved = localStorage.getItem(THEME_KEY) || "light";
   document.body.setAttribute("data-theme", saved);
   const btn = document.querySelector("[data-theme-toggle]");
-  if (btn) btn.onclick = () => {
-    const next = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-    document.body.setAttribute("data-theme", next);
-    localStorage.setItem(THEME_KEY, next);
-  };
+  if (btn) {
+    btn.onclick = () => {
+      const next = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      document.body.setAttribute("data-theme", next);
+      localStorage.setItem(THEME_KEY, next);
+    };
+  }
 }
 
-function injectAuthNav() {
+function initChatbot() {
+  if (document.getElementById("chatbotBox")) return;
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `
+    <button class="chatbot-toggle" id="chatbotToggle">AI</button>
+    <div class="chatbot-box" id="chatbotBox">
+      <div class="chatbot-head">
+        <span>Zoltrakk Helper</span>
+        <button id="chatbotClose">x</button>
+      </div>
+      <div class="chatbot-messages" id="chatMessages">
+        <div class="chat-msg bot">Welcome to Zoltrakk Arena. I can guide you with tournament creation, joining, and admin tools.</div>
+      </div>
+      <div class="chatbot-input">
+        <input id="chatInput" placeholder="Ask anything...">
+        <button class="btn" id="chatSend">Send</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const bot = {
+    join: "Open a tournament link, then choose Create Team or Join Existing Team.",
+    create: "Go to Create page, choose game, add lineup, then save tournament.",
+    admin: "Creator can delete teams, reorder teams, auto-match, and add manual matches.",
+    login: "Signup first, then login. My Tournaments opens when you are logged in.",
+    games: "Supported games: League of Legends, Valorant, CS2, Overwatch.",
+    contact: "Use Contact page for support and location details.",
+    default: "Try: how to create tournament, how to join team, admin powers, supported games."
+  };
+
+  const toggle = document.getElementById("chatbotToggle");
+  const box = document.getElementById("chatbotBox");
+  const close = document.getElementById("chatbotClose");
+  const send = document.getElementById("chatSend");
+  const input = document.getElementById("chatInput");
+  const messages = document.getElementById("chatMessages");
+
+  const reply = (q) => {
+    const text = q.toLowerCase();
+    if (text.includes("join")) return bot.join;
+    if (text.includes("create")) return bot.create;
+    if (text.includes("admin")) return bot.admin;
+    if (text.includes("login") || text.includes("sign")) return bot.login;
+    if (text.includes("game")) return bot.games;
+    if (text.includes("contact") || text.includes("support") || text.includes("location")) return bot.contact;
+    return bot.default;
+  };
+
+  const addMsg = (text, type) => {
+    const div = document.createElement("div");
+    div.className = `chat-msg ${type}`;
+    div.textContent = text;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  const submit = () => {
+    const q = input.value.trim();
+    if (!q) return;
+    addMsg(q, "user");
+    input.value = "";
+    setTimeout(() => addMsg(reply(q), "bot"), 260);
+  };
+
+  toggle.onclick = () => box.classList.toggle("open");
+  close.onclick = () => box.classList.remove("open");
+  send.onclick = submit;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+}
+
+function normalizeHeaderNav() {
   const nav = document.querySelector("header nav");
   if (!nav) return;
+
   const user = getCurrentUser();
-  if (user) {
-    if (!nav.querySelector('a[href="my-tournaments.html"]')) {
-      nav.insertAdjacentHTML("beforeend", '<a href="my-tournaments.html">My Tournaments</a>');
-    }
-    if (!nav.querySelector('[data-logout]')) {
-      nav.insertAdjacentHTML("beforeend", '<a href="#" data-logout>Logout</a>');
-      nav.querySelector("[data-logout]").onclick = (e) => { e.preventDefault(); clearCurrentUser(); location.href = "login.html"; };
-    }
+  const rawPage = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+  const page = rawPage === "tournament.html" ? "tournaments.html" : rawPage;
+  const links = [
+    ["index.html", "Home"],
+    ["schedule.html", "Schedule"],
+    ["players.html", "Players"],
+    ["tournaments.html", "Tournaments"],
+    ["create.html", "Create"],
+    ["team.html", "Team"],
+    ["my-tournaments.html", "My Tournaments"],
+    ["contact.html", "Support"]
+  ];
+
+  let html = links
+    .map(([href, label]) => `<a href="${href}" class="${page === href ? "active" : ""}">${label}</a>`)
+    .join("");
+
+  html += `<a href="signup.html" class="${page === "signup.html" ? "active" : ""}">Sign Up</a>`;
+  html += `<a href="login.html" class="${page === "login.html" ? "active" : ""}">Login</a>`;
+  if (user) html += `<a href="#" data-logout>Logout</a>`;
+
+  nav.innerHTML = html;
+  const logout = nav.querySelector("[data-logout]");
+  if (logout) {
+    logout.onclick = (e) => {
+      e.preventDefault();
+      clearCurrentUser();
+      location.href = "login.html";
+    };
   }
 }
 
@@ -74,9 +166,10 @@ async function initPlayersPage() {
     grid.innerHTML = filtered.map((p) => `
       <div class="flip-wrap"><article class="player-card"><div class="player-card-inner">
       <img src="${p.image}" alt="${esc(p.name)}"><div class="player-meta">
-      <h3>${esc(p.name)}${p.rank === "Diamond" ? '<span class="diamond">💎</span>' : ""}</h3>
+      <h3>${esc(p.name)}${p.rank === "Diamond" ? '<span class="diamond">DIA</span>' : ""}</h3>
       <p>${esc(p.game)}</p><span class="badge">${esc(p.rank)}</span></div></div></article></div>`).join("");
   };
+
   ["searchPlayer", "filterGame", "filterRank"].forEach((id) => document.getElementById(id)?.addEventListener("input", render));
   render();
 
@@ -87,26 +180,37 @@ async function initPlayersPage() {
   const msg = document.getElementById("regMsg");
   const getParticipants = () => JSON.parse(localStorage.getItem(REG_KEY) || "[]");
   const setParticipants = (d) => localStorage.setItem(REG_KEY, JSON.stringify(d));
+
   const renderParticipants = () => {
     const all = getParticipants();
     total.textContent = all.length;
     list.innerHTML = all.map((p, i) => `<li><span>${esc(p.name)} (${esc(p.game)})</span><button data-i="${i}">Remove</button></li>`).join("");
-    list.querySelectorAll("button").forEach((b) => b.onclick = () => { const a = getParticipants(); a.splice(+b.dataset.i, 1); setParticipants(a); renderParticipants(); });
+    list.querySelectorAll("button").forEach((b) => b.onclick = () => {
+      const a = getParticipants();
+      a.splice(+b.dataset.i, 1);
+      setParticipants(a);
+      renderParticipants();
+    });
   };
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     msg.textContent = "";
     const all = getParticipants();
     if (all.length >= 10) return void (msg.textContent = "Tournament limit reached (10 players).");
     all.push({ name: document.getElementById("regName").value.trim(), game: document.getElementById("regGame").value });
-    setParticipants(all); form.reset(); renderParticipants();
+    setParticipants(all);
+    form.reset();
+    renderParticipants();
   });
+
   renderParticipants();
 }
 
 function initSignupPage() {
   const form = document.getElementById("signupForm");
   if (!form) return;
+
   const pass = document.getElementById("pass");
   pass.addEventListener("input", () => {
     const v = pass.value;
@@ -120,6 +224,7 @@ function initSignupPage() {
     bar.style.width = `${score * 20}%`;
     bar.style.background = score <= 2 ? "#dc2626" : score <= 4 ? "#f59e0b" : "#16a34a";
   });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const setErr = (id, txt) => (document.getElementById(id).textContent = txt);
@@ -131,6 +236,7 @@ function initSignupPage() {
     const em = document.getElementById("email").value.trim().toLowerCase();
     const p = pass.value;
     const c = document.getElementById("confirmPass").value;
+
     if (!f) { setErr("fNameErr", "First name is required."); ok = false; }
     if (!l) { setErr("lNameErr", "Last name is required."); ok = false; }
     if (!a) { setErr("ageErr", "Age is required."); ok = false; }
@@ -146,7 +252,7 @@ function initSignupPage() {
     setUsers(users);
     setCurrentUser({ id: user.id, name: `${f} ${l}`, email: user.email });
     document.getElementById("signupSuccess").textContent = "Signup successful. Redirecting...";
-    setTimeout(() => { location.href = "my-tournaments.html"; }, 600);
+    setTimeout(() => { location.href = "my-tournaments.html"; }, 650);
   });
 }
 
@@ -155,7 +261,13 @@ function initLoginPage() {
   if (!form) return;
   const eye = document.getElementById("eyeBtn");
   const pass = document.getElementById("lPass");
-  eye.onclick = () => { const v = pass.type === "password"; pass.type = v ? "text" : "password"; eye.textContent = v ? "👁️" : "🙈"; };
+
+  eye.onclick = () => {
+    const isHidden = pass.type === "password";
+    pass.type = isHidden ? "text" : "password";
+    eye.innerHTML = isHidden ? "&#128065;&#65039;" : "&#128584;";
+  };
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     document.getElementById("eErr").textContent = "";
@@ -172,7 +284,7 @@ function initLoginPage() {
     setCurrentUser({ id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email });
     document.getElementById("loginStatus").className = "success";
     document.getElementById("loginStatus").textContent = "Login successful. Redirecting...";
-    setTimeout(() => { location.href = "my-tournaments.html"; }, 500);
+    setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
   });
 }
 
@@ -198,14 +310,15 @@ function initCreateTournamentPage() {
     const roles = getRoleTemplate(game);
     lineupFields.innerHTML = "";
     if (!roles.length) return void (hint.textContent = "");
-    hint.textContent = `${game} system selected.`;
-    lineupFields.innerHTML = `<label>Optional: Create your first team now</label>` + roles.map((r, i) => `
+    hint.textContent = `${game} role system selected.`;
+    lineupFields.innerHTML = `<label>Optional: Create first team now</label>` + roles.map((r, i) => `
       <div class="form-grid" style="margin-bottom:10px">
         <div><input data-player-name placeholder="Player ${i + 1} name"></div>
         <div><input data-player-role value="${r}" readonly></div>
       </div>`).join("");
   };
   gameSelect.addEventListener("change", renderLineup);
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     msg.textContent = "";
@@ -217,6 +330,7 @@ function initCreateTournamentPage() {
     const names = Array.from(document.querySelectorAll("[data-player-name]")).map((el) => el.value.trim());
     const roles = Array.from(document.querySelectorAll("[data-player-role]")).map((el) => el.value.trim());
     const firstTeamReady = names.length > 0 && names.every(Boolean);
+
     const t = {
       id: tId,
       tournamentName,
@@ -226,14 +340,20 @@ function initCreateTournamentPage() {
       ownerUserId: user.id,
       ownerEmail: user.email,
       status: "active",
-      teams: firstTeamReady ? [{ id: uid(), name: `${user.name}'s Team`, members: names.map((n, i) => ({ name: n, role: roles[i] })) }] : [],
+      teams: firstTeamReady ? [{ id: uid(), name: `${user.name} Team`, members: names.map((n, i) => ({ name: n, role: roles[i] })) }] : [],
       matches: [],
       createdAt: new Date().toISOString(),
       completedAt: null
     };
-    const all = getTournaments(); all.push(t); setTournaments(all);
+
+    const all = getTournaments();
+    all.push(t);
+    setTournaments(all);
     localStorage.setItem(`zoltrakk_admin_${tId}`, adminId);
-    form.reset(); adminInput.value = user.name; lineupFields.innerHTML = ""; hint.textContent = "";
+    form.reset();
+    adminInput.value = user.name;
+    lineupFields.innerHTML = "";
+    hint.textContent = "";
     msg.className = "success";
     const link = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}tournament.html?id=${tId}`;
     msg.innerHTML = `Tournament created. Share this link: <a href="${link}">${link}</a>`;
@@ -249,7 +369,7 @@ function initTournamentsPage() {
     const link = `tournament.html?id=${t.id}`;
     return `<article class="card" style="padding:14px;margin-bottom:12px">
       <h3 style="margin:0 0 4px">${esc(t.tournamentName)}</h3>
-      <p style="margin:0 0 8px">${esc(t.game)} · ${esc(t.status)}</p>
+      <p style="margin:0 0 8px">${esc(t.game)} - ${esc(t.status)}</p>
       <a class="btn" href="${link}">Open Tournament</a>
       <button class="btn alt" data-copy="${link}">Copy Share Link</button>
     </article>`;
@@ -272,7 +392,7 @@ function initTournamentDetailPage() {
   root.innerHTML = `
     <div class="card" style="padding:16px;margin-bottom:14px">
       <h2>${esc(t.tournamentName)}</h2>
-      <p>${esc(t.game)} · Admin: ${esc(t.adminName)} · Status: ${esc(t.status)}</p>
+      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - Status: ${esc(t.status)}</p>
       <p><strong>Share Link:</strong> <span id="shareUrl">${location.href}</span></p>
       <button class="btn alt" id="copyTournamentLink">Copy Link</button>
       ${isAdmin && t.status !== "completed" ? '<button class="btn" id="markCompletedBtn">Mark Completed</button>' : ""}
@@ -310,13 +430,21 @@ function initTournamentDetailPage() {
 
   document.getElementById("copyTournamentLink").onclick = async () => { try { await navigator.clipboard.writeText(location.href); } catch {} };
   if (document.getElementById("markCompletedBtn")) {
-    document.getElementById("markCompletedBtn").onclick = () => { t.status = "completed"; t.completedAt = new Date().toISOString(); save(); location.reload(); };
+    document.getElementById("markCompletedBtn").onclick = () => {
+      t.status = "completed";
+      t.completedAt = new Date().toISOString();
+      save();
+      location.reload();
+    };
   }
 
   const joinDynamic = document.getElementById("joinDynamic");
   const renderJoinDynamic = () => {
-    if (document.getElementById("joinMode").value === "create") joinDynamic.innerHTML = `<label>Team Name</label><input id="newTeamName" placeholder="Team Rockets">`;
-    else joinDynamic.innerHTML = `<label>Select Team</label><select id="existingTeamSel">${t.teams.map((tm) => `<option value="${tm.id}">${esc(tm.name)}</option>`).join("")}</select>`;
+    if (document.getElementById("joinMode").value === "create") {
+      joinDynamic.innerHTML = `<label>Team Name</label><input id="newTeamName" placeholder="Team Rockets">`;
+    } else {
+      joinDynamic.innerHTML = `<label>Select Team</label><select id="existingTeamSel">${t.teams.map((tm) => `<option value="${tm.id}">${esc(tm.name)}</option>`).join("")}</select>`;
+    }
   };
   renderJoinDynamic();
   document.getElementById("joinMode").onchange = renderJoinDynamic;
@@ -333,8 +461,18 @@ function initTournamentDetailPage() {
       </article>`).join("") : "<p>No teams yet.</p>";
     if (isAdmin) {
       list.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); save(); renderAll(); });
-      list.querySelectorAll("[data-up]").forEach((b) => b.onclick = () => { const i = t.teams.findIndex((x) => x.id === b.dataset.up); if (i > 0) [t.teams[i - 1], t.teams[i]] = [t.teams[i], t.teams[i - 1]]; save(); renderAll(); });
-      list.querySelectorAll("[data-down]").forEach((b) => b.onclick = () => { const i = t.teams.findIndex((x) => x.id === b.dataset.down); if (i < t.teams.length - 1) [t.teams[i + 1], t.teams[i]] = [t.teams[i], t.teams[i + 1]]; save(); renderAll(); });
+      list.querySelectorAll("[data-up]").forEach((b) => b.onclick = () => {
+        const i = t.teams.findIndex((x) => x.id === b.dataset.up);
+        if (i > 0) [t.teams[i - 1], t.teams[i]] = [t.teams[i], t.teams[i - 1]];
+        save();
+        renderAll();
+      });
+      list.querySelectorAll("[data-down]").forEach((b) => b.onclick = () => {
+        const i = t.teams.findIndex((x) => x.id === b.dataset.down);
+        if (i < t.teams.length - 1) [t.teams[i + 1], t.teams[i]] = [t.teams[i], t.teams[i + 1]];
+        save();
+        renderAll();
+      });
     }
   };
 
@@ -368,21 +506,26 @@ function initTournamentDetailPage() {
       if (team.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return void (msg.textContent = "You are already in this team.");
       team.members.push({ name, role: "Member" });
     }
-    save(); renderAll(); msg.className = "success"; msg.textContent = "Joined successfully.";
+    save();
+    renderAll();
+    msg.className = "success";
+    msg.textContent = "Joined successfully.";
   };
 
   if (isAdmin) {
     document.getElementById("autoMatchBtn").onclick = () => {
       t.matches = [];
       for (let i = 0; i < t.teams.length - 1; i += 2) t.matches.push({ a: t.teams[i].name, b: t.teams[i + 1].name, mode: "auto" });
-      save(); renderAll();
+      save();
+      renderAll();
     };
     document.getElementById("manualMatchBtn").onclick = () => {
       const a = t.teams.find((x) => x.id === document.getElementById("manualA").value);
       const b = t.teams.find((x) => x.id === document.getElementById("manualB").value);
       if (!a || !b || a.id === b.id) return;
       t.matches.push({ a: a.name, b: b.name, mode: "manual" });
-      save(); renderAll();
+      save();
+      renderAll();
     };
   }
 }
@@ -403,7 +546,7 @@ function initMyTournamentsPage() {
   root.innerHTML = mine.map((t) => `
     <article class="card" style="padding:14px;margin-bottom:12px">
       <h3>${esc(t.tournamentName)}</h3>
-      <p>${esc(t.game)} · Status: ${esc(t.status)}</p>
+      <p>${esc(t.game)} - Status: ${esc(t.status)}</p>
       <a class="btn" href="tournament.html?id=${t.id}">Open</a>
       ${t.status === "completed" ? `<button class="btn alt" data-delete-history="${t.id}">Delete from History</button>` : ""}
     </article>`).join("");
@@ -416,9 +559,21 @@ function initMyTournamentsPage() {
   });
 }
 
+function initContactPage() {
+  const form = document.getElementById("contactForm");
+  const status = document.getElementById("contactStatus");
+  if (!form || !status) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    status.textContent = "Thanks. Your support message has been received.";
+    form.reset();
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
-  injectAuthNav();
+  initChatbot();
+  normalizeHeaderNav();
   initPlayersPage();
   initSignupPage();
   initLoginPage();
@@ -426,4 +581,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initTournamentsPage();
   initTournamentDetailPage();
   initMyTournamentsPage();
+  initContactPage();
 });

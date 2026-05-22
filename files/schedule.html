@@ -1,26 +1,35 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Schedule</title><link rel="stylesheet" href="style.css"></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
 <header>
   <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
-  <nav><a href="index.html">Home</a><a class="active" href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="contact.html">Contact</a></nav>
+  <nav><a href="index.html">Home</a><a class="active" href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Tournaments</a><a href="create.html">Create</a><a href="team.html">Team</a><a href="my-tournaments.html">My Tournaments</a><a href="contact.html">Support</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
+
 <section>
   <div class="container">
     <h2>Tournament Schedule</h2>
+    <p>Track qualifiers, playoffs, and finals in one view.</p>
     <div class="table-wrap card">
       <table>
-        <tr><th>Date</th><th>Match</th><th>Time</th></tr>
-        <tr><td>June 10, 2026</td><td>Team Alpha vs Team Beta</td><td>4:00 PM</td></tr>
-        <tr><td>June 12, 2026</td><td>Team Gamma vs Team Delta</td><td>5:30 PM</td></tr>
-        <tr class="final-match"><td>June 20, 2026</td><td>Grand Final</td><td>7:00 PM</td></tr>
+        <tr><th>Date</th><th>Stage</th><th>Match</th><th>Time</th></tr>
+        <tr><td>June 10, 2026</td><td>Qualifier</td><td>Team Alpha vs Team Beta</td><td>4:00 PM</td></tr>
+        <tr><td>June 12, 2026</td><td>Qualifier</td><td>Team Gamma vs Team Delta</td><td>5:30 PM</td></tr>
+        <tr><td>June 15, 2026</td><td>Semi Final</td><td>Winner Q1 vs Winner Q2</td><td>6:00 PM</td></tr>
+        <tr class="final-match"><td>June 20, 2026</td><td>Grand Final</td><td>Finalists Battle</td><td>7:00 PM</td></tr>
       </table>
     </div>
   </div>
 </section>
-<footer>© 2026 Zoltrakk Tournament</footer>
+
+<footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>
