@@ -70,18 +70,14 @@ header {
   white-space: nowrap;
 }
 
-.logo-wrap img {
-  height: 64px;
-  width: 64px;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(207, 2, 16, 0.35));
+.logo-text {
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.2s ease;
 }
 
-@media (max-width: 780px) {
-  .logo-wrap img {
-    height: 52px;
-    width: 52px;
-  }
+.logo-text:hover {
+  color: var(--primary);
 }
 
 nav {
@@ -158,9 +154,19 @@ section { padding: 62px 18px; }
 }
 
 .hero {
-  padding: 95px 18px 68px;
+  padding: 36px 18px 68px;
   text-align: center;
   position: relative;
+}
+
+.hero-brand-logo {
+  display: block;
+  margin: 0 auto 22px;
+  max-width: min(560px, 94vw);
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 28px rgba(69, 8, 201, 0.35));
 }
 
 .hero::after {
@@ -300,7 +306,56 @@ label { display: block; font-size: .9rem; font-weight: 700; margin-bottom: 6px; 
   padding: 12px;
   box-shadow: var(--shadow);
 }
-.player-card img { width: 100%; height: 175px; object-fit: cover; border-radius: 10px; }
+.player-card img { width: 100%; height: 175px; object-fit: cover; border-radius: 10px; background: var(--surface-2); }
+
+.hint-text {
+  margin: 6px 0 0;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.image-preview {
+  margin: 12px 0;
+}
+
+.image-preview img {
+  max-width: 140px;
+  max-height: 140px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+.image-preview.hidden { display: none; }
+
+.empty-state {
+  padding: 28px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  grid-column: 1 / -1;
+}
+
+.participants .participant-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+.participants li {
+  gap: 10px;
+}
+
+.participants li > span {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
 .player-meta h3 { margin: 10px 0 4px; }
 .badge {
   display: inline-block;

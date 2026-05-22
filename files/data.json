@@ -1,13 +1,3 @@
 {
-  "players": [
-    { "name": "Ayan Blaze", "rank": "Diamond", "game": "Valorant", "image": "images/player1.jpg" },
-    { "name": "Rida Nova", "rank": "Platinum", "game": "CS2", "image": "images/player2.jpg" },
-    { "name": "Hamza Rift", "rank": "Gold", "game": "League of Legends", "image": "images/player3.jpg" },
-    { "name": "Mina Vex", "rank": "Diamond", "game": "CS2", "image": "images/player1.jpg" },
-    { "name": "Taha Core", "rank": "Silver", "game": "Valorant", "image": "images/player2.jpg" },
-    { "name": "Lara Byte", "rank": "Platinum", "game": "League of Legends", "image": "images/player3.jpg" },
-    { "name": "Saad Echo", "rank": "Gold", "game": "Valorant", "image": "images/player1.jpg" },
-    { "name": "Noor Frost", "rank": "Diamond", "game": "League of Legends", "image": "images/player2.jpg" },
-    { "name": "Yusra Volt", "rank": "Silver", "game": "CS2", "image": "images/player3.jpg" }
-  ]
+  "players": []
 }

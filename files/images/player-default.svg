@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Player">
+  <rect width="200" height="200" rx="20" fill="#2a184a"/>
+  <circle cx="100" cy="78" r="36" fill="#50307e"/>
+  <ellipse cx="100" cy="168" rx="58" ry="42" fill="#50307e"/>
+</svg>

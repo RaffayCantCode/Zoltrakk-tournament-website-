@@ -4,6 +4,8 @@ const TOURNAMENTS_KEY = "zoltrakk_tournaments_v2";
 const USERS_KEY = "zoltrakk_users";
 const CURRENT_USER_KEY = "zoltrakk_current_user";
 const STORE_API = "/.netlify/functions/store";
+const DEFAULT_PLAYER_IMAGE = "images/player-default.svg";
+const MAX_PLAYER_IMAGE_BYTES = 450000;
 
 let cloudOnline = false;
 let syncInFlight = false;
@@ -327,30 +329,54 @@ function getRoleTemplate(game) {
   return [];
 }
 
+function playersForDisplay() {
+  return getParticipants().map((p) => ({
+    id: p.id,
+    name: p.name,
+    game: p.game,
+    rank: p.rank || "Unranked",
+    image: p.image || DEFAULT_PLAYER_IMAGE
+  }));
+}
+
+function readOptionalImage(fileInput) {
+  const file = fileInput?.files?.[0];
+  if (!file) return Promise.resolve("");
+  if (!file.type.startsWith("image/")) return Promise.reject(new Error("Please choose a valid image file."));
+  if (file.size > MAX_PLAYER_IMAGE_BYTES) return Promise.reject(new Error("Image is too large. Use a file under 400KB."));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function initPlayersPage() {
   const grid = document.getElementById("playerGrid");
   if (!grid) return;
-  let players = [];
-  try {
-    const apiRes = await fetch("/.netlify/functions/players");
-    const apiData = await apiRes.json();
-    players = apiData.data || [];
-  } catch {
-    const fallbackRes = await fetch("data.json");
-    const fallbackData = await fallbackRes.json();
-    players = fallbackData.players || [];
-  }
 
   const render = () => {
+    const players = playersForDisplay();
     const q = (document.getElementById("searchPlayer")?.value || "").toLowerCase();
     const game = document.getElementById("filterGame")?.value || "";
     const rank = document.getElementById("filterRank")?.value || "";
-    let filtered = players.filter((p) => p.name.toLowerCase().includes(q) && (!game || p.game === game) && (!rank || p.rank === rank));
-    const rankOrder = { Diamond: 1, Platinum: 2, Gold: 3, Silver: 4 };
-    if (rank) filtered = filtered.sort((a, b) => (rankOrder[a.rank] || 99) - (rankOrder[b.rank] || 99));
+    let filtered = players.filter((p) => {
+      const rankVal = p.rank || "Unranked";
+      return p.name.toLowerCase().includes(q) && (!game || p.game === game) && (!rank || rankVal === rank);
+    });
+    const rankOrder = { Diamond: 1, Platinum: 2, Gold: 3, Silver: 4, Unranked: 5 };
+    filtered = filtered.sort((a, b) => (rankOrder[a.rank] || 99) - (rankOrder[b.rank] || 99));
+
+    if (!filtered.length) {
+      grid.innerHTML = `<div class="empty-state"><p>No registered players yet. Use the form above to add your first player card with an optional photo.</p></div>`;
+      return;
+    }
+
     grid.innerHTML = filtered.map((p) => `
       <div class="flip-wrap"><article class="player-card"><div class="player-card-inner">
-      <img src="${p.image}" alt="${esc(p.name)}"><div class="player-meta">
+      <img src="${p.image}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_PLAYER_IMAGE}'">
+      <div class="player-meta">
       <h3>${esc(p.name)}${p.rank === "Diamond" ? '<span class="diamond">DIA</span>' : ""}</h3>
       <p>${esc(p.game)}</p><span class="badge">${esc(p.rank)}</span></div></div></article></div>`).join("");
   };
@@ -363,28 +389,80 @@ async function initPlayersPage() {
   const list = document.getElementById("participantsList");
   const total = document.getElementById("totalRegistered");
   const msg = document.getElementById("regMsg");
+  const imageInput = document.getElementById("regImage");
+  const imagePreview = document.getElementById("imagePreview");
+
+  if (imageInput) {
+    imageInput.addEventListener("change", async () => {
+      if (!imagePreview) return;
+      try {
+        const dataUrl = await readOptionalImage(imageInput);
+        if (!dataUrl) {
+          imagePreview.classList.add("hidden");
+          imagePreview.innerHTML = "";
+          return;
+        }
+        imagePreview.classList.remove("hidden");
+        imagePreview.innerHTML = `<img src="${dataUrl}" alt="Preview">`;
+      } catch (err) {
+        imagePreview.classList.add("hidden");
+        imagePreview.innerHTML = "";
+        msg.textContent = err.message;
+      }
+    });
+  }
 
   const renderParticipants = () => {
     const all = getParticipants();
     total.textContent = all.length;
-    list.innerHTML = all.map((p, i) => `<li><span>${esc(p.name)} (${esc(p.game)})</span><button data-i="${i}">Remove</button></li>`).join("");
+    if (!all.length) {
+      list.innerHTML = "<li><span>No players registered yet.</span></li>";
+      render();
+      return;
+    }
+    list.innerHTML = all.map((p, i) => {
+      const thumb = p.image
+        ? `<img class="participant-thumb" src="${p.image}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PLAYER_IMAGE}'">`
+        : `<img class="participant-thumb" src="${DEFAULT_PLAYER_IMAGE}" alt="">`;
+      return `<li>${thumb}<span>${esc(p.name)} · ${esc(p.game)}${p.rank ? ` · ${esc(p.rank)}` : ""}</span><button data-i="${i}">Remove</button></li>`;
+    }).join("");
     list.querySelectorAll("button").forEach((b) => b.onclick = () => {
       const a = getParticipants();
       a.splice(+b.dataset.i, 1);
       setParticipants(a);
       renderParticipants();
     });
+    render();
   };
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     msg.textContent = "";
+    msg.className = "error";
+    const name = document.getElementById("regName").value.trim();
+    const game = document.getElementById("regGame").value;
+    const rank = document.getElementById("regRank")?.value || "";
+    if (!name) return void (msg.textContent = "Player name is required.");
     const all = getParticipants();
     if (all.length >= 10) return void (msg.textContent = "Tournament limit reached (10 players).");
-    all.push({ id: uid(), name: document.getElementById("regName").value.trim(), game: document.getElementById("regGame").value });
-    setParticipants(all);
-    form.reset();
-    renderParticipants();
+    if (all.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      return void (msg.textContent = "A player with this name is already registered.");
+    }
+    try {
+      const image = await readOptionalImage(imageInput);
+      all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
+      setParticipants(all);
+      form.reset();
+      if (imagePreview) {
+        imagePreview.classList.add("hidden");
+        imagePreview.innerHTML = "";
+      }
+      msg.className = "success";
+      msg.textContent = "Player registered successfully.";
+      renderParticipants();
+    } catch (err) {
+      msg.textContent = err.message;
+    }
   });
 
   renderParticipants();
@@ -510,7 +588,13 @@ function initCreateTournamentPage() {
   const adminInput = document.getElementById("adminName");
 
   if (!user) {
-    form.innerHTML = '<p class="error">You must login first to create tournaments.</p><a class="btn" href="login.html">Go to Login</a>';
+    form.innerHTML = `
+      <p class="error">You must login first to create tournaments.</p>
+      <p style="margin:12px 0 0;color:var(--muted)">Don't have an account? Create one to start hosting tournaments.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <a class="btn" href="login.html">Go to Login</a>
+        <a class="btn alt" href="signup.html">Create Account</a>
+      </div>`;
     return;
   }
   adminInput.value = user.name;
@@ -566,8 +650,25 @@ function initCreateTournamentPage() {
     lineupFields.innerHTML = "";
     hint.textContent = "";
     msg.className = "success";
-    const link = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}tournament.html?id=${tId}`;
-    msg.innerHTML = `Tournament created. Share this link: <a href="${link}">${link}</a> — matches appear on <a href="schedule.html">Schedule</a>.`;
+    const base = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}`;
+    const link = `${base}tournament.html?id=${tId}`;
+    msg.innerHTML = `
+      <p style="margin:0 0 10px"><strong>Tournament created!</strong> Share the link with friends so they can join teams.</p>
+      <p style="word-break:break-all;margin:0 0 12px"><a href="${link}">${link}</a></p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <a class="btn" href="${link}">Open Tournament</a>
+        <a class="btn alt" href="schedule.html?tournament=${tId}">View Schedule</a>
+        <button type="button" class="btn alt" id="copyNewTournamentLink">Copy Share Link</button>
+      </div>`;
+    document.getElementById("copyNewTournamentLink")?.addEventListener("click", async () => {
+      const btn = document.getElementById("copyNewTournamentLink");
+      try {
+        await navigator.clipboard.writeText(link);
+        btn.textContent = "Copied!";
+      } catch {
+        btn.textContent = "Copy failed — use link above";
+      }
+    });
   });
 }
 
@@ -595,7 +696,13 @@ function initTournamentsPage() {
   }).join("");
   card.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
     const abs = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}${b.dataset.copy}`;
-    try { await navigator.clipboard.writeText(abs); b.textContent = "Copied"; } catch { b.textContent = abs; }
+    try {
+      await navigator.clipboard.writeText(abs);
+      b.textContent = "Copied!";
+      setTimeout(() => { b.textContent = "Copy Share Link"; }, 2000);
+    } catch {
+      b.textContent = "Copy blocked";
+    }
   });
 }
 
@@ -614,7 +721,17 @@ function initTournamentDetailPage() {
   const id = new URLSearchParams(location.search).get("id");
   const all = getTournaments();
   const t = all.find((x) => x.id === id);
-  if (!t) return void (root.innerHTML = "<p>Tournament not found. It may not be synced yet — refresh after cloud sync.</p>");
+  if (!t) {
+    root.innerHTML = `<div class="card" style="padding:20px">
+      <p>Tournament not found on this device yet.</p>
+      <p>Ask the host for the share link, or wait a moment and <button class="btn alt" type="button" id="retryTournamentLoad">Refresh</button> after cloud sync.</p>
+      <a class="btn" href="tournaments.html">Browse Tournaments</a></div>`;
+    document.getElementById("retryTournamentLoad")?.addEventListener("click", async () => {
+      await syncAllFromCloud();
+      location.reload();
+    });
+    return;
+  }
   const isAdmin = isTournamentAdmin(t);
   t.matches = (t.matches || []).map((m, i) => normalizeMatch(m, i));
 
@@ -652,7 +769,16 @@ function initTournamentDetailPage() {
     </div>
   `;
 
-  document.getElementById("copyTournamentLink").onclick = async () => { try { await navigator.clipboard.writeText(location.href); } catch {} };
+  const copyBtn = document.getElementById("copyTournamentLink");
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      copyBtn.textContent = "Link Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy Link"; }, 2000);
+    } catch {
+      copyBtn.textContent = "Copy blocked — select URL above";
+    }
+  };
   if (document.getElementById("markCompletedBtn")) {
     document.getElementById("markCompletedBtn").onclick = () => {
       t.status = "completed";
@@ -932,7 +1058,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await syncAllFromCloud();
   normalizeHeaderNav();
   initHomeStats();
-  initPlayersPage();
   initSignupPage();
   initLoginPage();
   initCreateTournamentPage();
@@ -941,4 +1066,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSchedulePage();
   initMyTournamentsPage();
   initContactPage();
+  initPlayersPage();
 });

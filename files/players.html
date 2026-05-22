@@ -8,33 +8,24 @@
 </head>
 <body>
 <header>
-  <div class="logo-wrap"><img src="images/logo.png" alt="Logo"><span>Zoltrakk Arena</span></div>
+  <div class="logo-wrap"><a href="index.html" class="logo-text">Zoltrakk Arena</a></div>
   <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Browse</a><a href="create.html">Create</a><a href="team.html">Teams</a><a href="contact.html">Support</a><a href="my-tournaments.html">My Hub</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
 
 <section>
-  <div class="container">
-    <h2>Player Cards</h2>
-    <p>Search and filter by name, game, and rank with live updates.</p>
-    <div class="player-controls">
-      <input id="searchPlayer" placeholder="Search player by name">
-      <select id="filterGame"><option value="">All Games</option><option>Valorant</option><option>CS2</option><option>League of Legends</option><option>Overwatch</option></select>
-      <select id="filterRank"><option value="">All Ranks</option><option>Diamond</option><option>Platinum</option><option>Gold</option><option>Silver</option></select>
-    </div>
-    <div id="playerGrid" class="player-grid"></div>
-  </div>
-</section>
-
-<section>
-  <div class="container card" style="padding:20px">
-    <h2>Tournament Registration (Max 10)</h2>
+  <div class="container card" style="padding:20px;margin-bottom:18px">
+    <h2>Register Player (Max 10)</h2>
+    <p>Add real players to the arena. Placeholder demo cards were removed — only registered players appear below.</p>
     <form id="regForm">
       <div class="form-grid">
-        <div><label>Name</label><input id="regName" required></div>
+        <div><label>Name</label><input id="regName" required placeholder="Player name"></div>
         <div><label>Game</label><select id="regGame"><option>Valorant</option><option>CS2</option><option>League of Legends</option><option>Overwatch</option></select></div>
+        <div><label>Rank (optional)</label><select id="regRank"><option value="">Unranked</option><option>Diamond</option><option>Platinum</option><option>Gold</option><option>Silver</option></select></div>
+        <div><label>Player Photo (optional)</label><input id="regImage" type="file" accept="image/*"><p class="hint-text" id="imageHint">JPG/PNG/WebP, max 400KB recommended.</p></div>
       </div>
-      <button class="btn" type="submit">Register</button>
+      <div id="imagePreview" class="image-preview hidden"></div>
+      <button class="btn" type="submit">Register Player</button>
       <p id="regMsg" class="error"></p>
     </form>
     <p><strong>Total Registered Players: </strong><span id="totalRegistered">0</span>/10</p>
@@ -42,9 +33,20 @@
   </div>
 </section>
 
+<section>
+  <div class="container">
+    <h2>Player Cards</h2>
+    <p>Search and filter registered players by name, game, and rank.</p>
+    <div class="player-controls">
+      <input id="searchPlayer" placeholder="Search player by name">
+      <select id="filterGame"><option value="">All Games</option><option>Valorant</option><option>CS2</option><option>League of Legends</option><option>Overwatch</option></select>
+      <select id="filterRank"><option value="">All Ranks</option><option>Unranked</option><option>Diamond</option><option>Platinum</option><option>Gold</option><option>Silver</option></select>
+    </div>
+    <div id="playerGrid" class="player-grid"></div>
+  </div>
+</section>
+
 <footer>&copy; 2026 Zoltrakk Tournament</footer>
 <script src="script.js"></script>
 </body>
 </html>
-
-
