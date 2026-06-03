@@ -16,15 +16,21 @@
 <section>
   <div class="container card" style="padding:20px">
     <h2>Tournaments Hub</h2>
-    <p>Create, share, and manage competitive brackets with friends. Use game-specific roles for authentic tournaments.</p>
+    <p>Create, join, search, and manage active gaming tournaments. Completed events are kept in the archive.</p>
     <a class="btn" href="create.html">Create Tournament</a>
-    <a class="btn alt" href="players.html">Browse Players</a>
+    <a class="btn alt" href="archive.html">Tournament Archive</a>
   </div>
 </section>
 
 <section>
   <div class="container">
     <h2>Live Tournament List</h2>
+    <p id="activeGameFilterNote" class="hint-text"></p>
+    <div class="filter-bar card" style="padding:14px;margin-bottom:14px">
+      <div><label>Search</label><input id="tournamentSearch" placeholder="Search tournaments or games"></div>
+      <div><label>Game</label><select id="tournamentGameFilter"><option value="">All games</option><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select></div>
+      <div><label>Sort</label><select id="tournamentSort"><option value="newest">Newest</option><option value="upcoming">Upcoming</option><option value="popular">Most Popular</option><option value="active">Active</option></select></div>
+    </div>
     <div data-created-tournaments></div>
   </div>
 </section>

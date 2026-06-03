@@ -59,8 +59,11 @@ exports.handler = async function handler(event) {
         const password = body.password || "";
         const users = await readCollection(store, "users");
         const found = users.find((u) => u.email === email);
-        if (!found || !verifyPassword(password, found)) {
-          return jsonResponse(401, { success: false, message: "Invalid email or password." });
+        if (!found) {
+          return jsonResponse(404, { success: false, message: "No account found with this email address.", code: "EMAIL_NOT_FOUND" });
+        }
+        if (!verifyPassword(password, found)) {
+          return jsonResponse(401, { success: false, message: "Incorrect password.", code: "WRONG_PASSWORD" });
         }
         return jsonResponse(200, { success: true, user: sanitizeUser(found) });
       }

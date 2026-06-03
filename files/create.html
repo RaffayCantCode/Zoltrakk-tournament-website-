@@ -40,6 +40,63 @@
               <option value="Overwatch">Overwatch</option>
             </select>
           </div>
+          <div>
+            <label>Date &amp; Time</label>
+            <input id="tournamentDateTime" type="datetime-local">
+          </div>
+        </div>
+        <div>
+          <label>Description</label>
+          <textarea id="tournamentDescription" rows="3" placeholder="Who is this event for? What should players expect?"></textarea>
+        </div>
+        <div>
+          <label>Rules</label>
+          <textarea id="tournamentRules" rows="3" placeholder="Check-in, map rules, scoring, conduct, and result submission rules"></textarea>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Player Limit</label>
+            <input id="playerLimit" type="number" min="2" max="256" value="32">
+          </div>
+          <div>
+            <label>Banner Image</label>
+            <input id="tournamentBanner" type="file" accept="image/*">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Prize Amount</label>
+            <input id="prizeAmount" placeholder="Optional, e.g. 0.05">
+          </div>
+          <div>
+            <label>Prize Type</label>
+            <select id="prizeType"><option value="">No prize</option><option>ETH</option><option>Cash</option><option>Gift Card</option><option>Merch</option><option>In-game Reward</option></select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Prize Description</label>
+            <input id="prizeDescription" placeholder="Reward details">
+          </div>
+          <div>
+            <label>Number of Winners</label>
+            <input id="winnerCount" type="number" min="1" max="16" value="1">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Paid Entry</label>
+            <select id="paidEntryEnabled"><option value="false">Free to join</option><option value="true">Require MetaMask payment</option></select>
+          </div>
+          <div>
+            <label>Entry Fee (ETH)</label>
+            <input id="entryFeeEth" inputmode="decimal" placeholder="0.01">
+          </div>
+        </div>
+        <div>
+          <label>Payment Wallet Address</label>
+          <input id="paymentWallet" placeholder="0x... receives entry fees and prize funding">
+          <p class="hint-text">Paid tournaments require a valid wallet. Players approve the payment in MetaMask before their team is added.</p>
         </div>
         <p id="gameSystemHint" class="success"></p>
         <div id="lineupFields"></div>
@@ -57,6 +114,10 @@
         <li><strong>Overwatch:</strong> Tank, Damage, Damage, Support, Support</li>
       </ul>
       <p>After creation, copy the generated link and share it with your friends.</p>
+      <div class="rules-box">
+        <strong>Wallet Safety</strong>
+        <p>Zoltrakk only asks MetaMask to connect an account or approve a visible ETH transaction. Never enter seed phrases, private keys, or wallet passwords on this website.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -65,5 +126,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-
-

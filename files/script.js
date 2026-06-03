@@ -6,6 +6,13 @@ const CURRENT_USER_KEY = "zoltrakk_current_user";
 const STORE_API = "/.netlify/functions/store";
 const DEFAULT_PLAYER_IMAGE = "images/player-default.svg";
 const MAX_PLAYER_IMAGE_BYTES = 450000;
+const DEFAULT_BANNERS = {
+  "League of Legends": "images/game-lol-art.png",
+  "Valorant": "images/game-valorant-art.png",
+  "CS2": "images/game-cs2-art.png",
+  "Overwatch": "images/game-overwatch-art.png"
+};
+const OPEN_STATUSES = ["upcoming", "active"];
 
 let cloudOnline = false;
 let syncInFlight = false;
@@ -46,7 +53,7 @@ function mergeUsers(local, cloud) {
   cloud.forEach((cu) => {
     const prev = map.get(cu.email);
     if (!prev) map.set(cu.email, { ...cu });
-    else map.set(cu.email, { ...prev, ...cu, password: prev.password });
+    else map.set(cu.email, { ...prev, ...cu, password: prev.password || cu.password });
   });
   return Array.from(map.values());
 }
@@ -278,6 +285,7 @@ function normalizeHeaderNav() {
     ["schedule.html", "Schedule"],
     ["players.html", "Players"],
     ["tournaments.html", "Browse"],
+    ["archive.html", "Archive"],
     ["create.html", "Create"],
     ["team.html", "Teams"],
     ["contact.html", "Support"]
@@ -311,7 +319,7 @@ function initHomeStats() {
   const row = document.getElementById("homeStatsRow");
   if (!row) return;
   const all = getTournaments();
-  const active = all.filter((t) => t.status === "active").length;
+  const active = all.filter((t) => OPEN_STATUSES.includes(t.status || "upcoming")).length;
   const teams = all.reduce((n, t) => n + (t.teams?.length || 0), 0);
   const matches = all.reduce((n, t) => n + (t.matches?.length || 0), 0);
   row.innerHTML = `
@@ -327,6 +335,85 @@ function getRoleTemplate(game) {
   if (game === "Overwatch") return ["Tank", "Damage", "Damage", "Support", "Support"];
   if (game === "CS2") return ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"];
   return [];
+}
+
+function statusLabel(status) {
+  const clean = status || "upcoming";
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function isArchivedTournament(t) {
+  return ["completed", "cancelled"].includes((t.status || "").toLowerCase());
+}
+
+function participantTotal(t) {
+  return (t.teams || []).reduce((sum, team) => sum + (team.members || []).length, 0);
+}
+
+function tournamentBanner(t) {
+  return t.bannerImage || DEFAULT_BANNERS[t.game] || "images/background.jpg";
+}
+
+function completedWinners(t) {
+  const matchWinners = (t.matches || []).map((m) => m.winner).filter(Boolean);
+  return Array.from(new Set([...(t.winners || []), ...matchWinners]));
+}
+
+function prizeBadge(t) {
+  if (!t.prize?.type && !t.prize?.amount) return "";
+  const verified = t.prize.verificationStatus === "verified";
+  return `<span class="tag ${verified ? "verified" : "unverified"}">${verified ? "Verified Prize" : "Prize Pending Review"}</span>`;
+}
+
+function hasMetaMask() {
+  return Boolean(window.ethereum?.isMetaMask || window.ethereum);
+}
+
+function isEthAddress(address) {
+  return /^0x[a-fA-F0-9]{40}$/.test((address || "").trim());
+}
+
+function normalizeAddress(address) {
+  return (address || "").trim();
+}
+
+function ethToWeiHex(amount) {
+  const clean = String(amount || "").trim();
+  if (!/^\d+(\.\d{1,18})?$/.test(clean)) throw new Error("Enter a valid ETH amount.");
+  const [whole, fraction = ""] = clean.split(".");
+  const wei = BigInt(whole || "0") * 1000000000000000000n + BigInt((fraction + "0".repeat(18)).slice(0, 18));
+  if (wei <= 0n) throw new Error("ETH amount must be greater than 0.");
+  return `0x${wei.toString(16)}`;
+}
+
+async function connectMetaMask() {
+  if (!hasMetaMask()) throw new Error("MetaMask is not available in this browser.");
+  const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+  if (!accounts?.length) throw new Error("No MetaMask account connected.");
+  return accounts[0];
+}
+
+async function sendEthWithMetaMask({ to, amountEth }) {
+  const recipient = normalizeAddress(to);
+  if (!isEthAddress(recipient)) throw new Error("A valid payment wallet address is required.");
+  const from = await connectMetaMask();
+  const txHash = await window.ethereum.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to: recipient, value: ethToWeiHex(amountEth) }]
+  });
+  return { from, to: recipient, amountEth: String(amountEth), txHash, chainId: await window.ethereum.request({ method: "eth_chainId" }), paidAt: nowIso() };
+}
+
+function safeShareUrl(t) {
+  const url = new URL("tournament.html", location.href);
+  url.searchParams.set("id", t.id);
+  url.searchParams.set("share", t.shareToken || "");
+  return url.href;
+}
+
+function paidEntrySummary(t) {
+  if (!t.paidEntry?.enabled) return "";
+  return `<span class="tag unverified">Paid Entry: ${esc(t.paidEntry.entryFeeEth)} ETH</span>`;
 }
 
 function playersForDisplay() {
@@ -506,8 +593,14 @@ function initSignupPage() {
     if (p !== c) { setErr("matchErr", "Passwords do not match."); ok = false; }
     if (!ok) return;
 
-    const users = getUsers();
+    let users = getUsers();
     if (users.some((u) => u.email === em)) return setErr("emailErr", "Account already exists for this email.");
+    try {
+      const cloudUsers = await fetchCloudCollection("users");
+      users = mergeUsers(users, cloudUsers);
+      setUsers(users, { skipCloud: true });
+      if (users.some((u) => u.email === em)) return setErr("emailErr", "Account already exists for this email.");
+    } catch { /* offline - local check is sufficient */ }
     const user = { id: uid(), firstName: f, lastName: l, age: a, email: em, password: p, updatedAt: nowIso() };
     users.push(user);
     setUsers(users);
@@ -549,30 +642,52 @@ function initLoginPage() {
     if (!p) { document.getElementById("pErr").textContent = "Password is required."; ok = false; }
     if (!ok) return;
 
-    let user = null;
-    try {
-      const cloud = await cloudLogin(em, p);
-      if (cloud.success && cloud.user) {
-        user = getUsers().find((u) => u.email === em) || {
-          id: cloud.user.id,
-          firstName: cloud.user.firstName,
-          lastName: cloud.user.lastName,
-          age: cloud.user.age,
-          email: cloud.user.email,
-          password: p
-        };
-        cloudOnline = true;
-        updateSyncBadge();
-      }
-    } catch {
-      /* fallback to local */
+    const status = document.getElementById("loginStatus");
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking...";
+
+    let users = getUsers();
+    let user = users.find((u) => u.email === em);
+
+    if (!user) {
+      try {
+        const cloudUsers = await fetchCloudCollection("users");
+        users = mergeUsers(users, cloudUsers);
+        setUsers(users, { skipCloud: true });
+        user = users.find((u) => u.email === em);
+      } catch { /* fallback */ }
     }
 
-    if (!user) user = getUsers().find((u) => u.email === em && u.password === p);
-    if (!user) return void (document.getElementById("loginStatus").textContent = "Invalid email or password.");
+    if (!user) {
+      status.textContent = "No account found with this email address.";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Login";
+      return;
+    }
+
+    let passwordMatch = user.password === p;
+    if (!passwordMatch) {
+      try {
+        const cloud = await cloudLogin(em, p);
+        if (cloud.success && cloud.user) {
+          passwordMatch = true;
+          cloudOnline = true;
+          updateSyncBadge();
+        }
+      } catch { /* fallback */ }
+    }
+
+    if (!passwordMatch) {
+      status.textContent = "Incorrect password.";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Login";
+      return;
+    }
+
     setCurrentUser({ id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email });
-    document.getElementById("loginStatus").className = "success";
-    document.getElementById("loginStatus").textContent = "Login successful. Redirecting...";
+    status.className = "success";
+    status.textContent = "Login successful. Redirecting...";
     setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
   });
 }
@@ -614,7 +729,7 @@ function initCreateTournamentPage() {
   };
   gameSelect.addEventListener("change", renderLineup);
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     msg.textContent = "";
     const tournamentName = document.getElementById("tournamentName").value.trim();
@@ -626,15 +741,61 @@ function initCreateTournamentPage() {
     const roles = Array.from(document.querySelectorAll("[data-player-role]")).map((el) => el.value.trim());
     const firstTeamReady = names.length > 0 && names.every(Boolean);
 
+    let bannerImage = "";
+    try {
+      bannerImage = await readOptionalImage(document.getElementById("tournamentBanner"));
+    } catch (err) {
+      return void (msg.textContent = err.message);
+    }
+
+    const prizeType = document.getElementById("prizeType").value;
+    const prizeAmount = document.getElementById("prizeAmount").value.trim();
+    const paidEnabled = document.getElementById("paidEntryEnabled").value === "true";
+    const entryFeeEth = document.getElementById("entryFeeEth").value.trim();
+    const paymentWallet = normalizeAddress(document.getElementById("paymentWallet").value);
+    if (paidEnabled) {
+      if (!entryFeeEth) return void (msg.textContent = "Entry fee is required for paid tournaments.");
+      try { ethToWeiHex(entryFeeEth); } catch (err) { return void (msg.textContent = err.message); }
+      if (!isEthAddress(paymentWallet)) return void (msg.textContent = "Enter a valid payment wallet address for paid tournaments.");
+    }
+    if ((prizeType === "ETH" || prizeAmount) && paymentWallet && !isEthAddress(paymentWallet)) {
+      return void (msg.textContent = "Enter a valid wallet address for ETH prize funding.");
+    }
     const t = touchTournament({
       id: tId,
+      shareToken: uid(),
       tournamentName,
       game,
+      description: document.getElementById("tournamentDescription").value.trim(),
+      rules: document.getElementById("tournamentRules").value.trim(),
+      startsAt: document.getElementById("tournamentDateTime").value,
+      playerLimit: Math.max(2, Number(document.getElementById("playerLimit").value) || 32),
+      bannerImage,
       adminName: user.name,
       adminId,
       ownerUserId: user.id,
       ownerEmail: user.email,
-      status: "active",
+      status: "upcoming",
+      settings: { joinApproval: false },
+      removedPlayers: [],
+      joinRequests: [],
+      paymentWallet,
+      paidEntry: {
+        enabled: paidEnabled,
+        entryFeeEth: paidEnabled ? entryFeeEth : "",
+        verificationRequired: paidEnabled
+      },
+      announcements: [],
+      prize: {
+        amount: prizeAmount,
+        type: prizeType,
+        description: document.getElementById("prizeDescription").value.trim(),
+        winnerCount: Math.max(1, Number(document.getElementById("winnerCount").value) || 1),
+        verificationStatus: prizeType || prizeAmount ? "pending" : "none",
+        fundingTx: null,
+        claims: [],
+        winnerConfirmed: false
+      },
       teams: firstTeamReady ? [{ id: uid(), name: `${user.name} Team`, members: names.map((n, i) => ({ name: n, role: roles[i] })) }] : [],
       matches: [],
       createdAt: nowIso(),
@@ -651,7 +812,7 @@ function initCreateTournamentPage() {
     hint.textContent = "";
     msg.className = "success";
     const base = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}`;
-    const link = `${base}tournament.html?id=${tId}`;
+    const link = `${base}tournament.html?id=${tId}&share=${t.shareToken}`;
     msg.innerHTML = `
       <p style="margin:0 0 10px"><strong>Tournament created!</strong> Share the link with friends so they can join teams.</p>
       <p style="word-break:break-all;margin:0 0 12px"><a href="${link}">${link}</a></p>
@@ -675,26 +836,68 @@ function initCreateTournamentPage() {
 function initTournamentsPage() {
   const card = document.querySelector("[data-created-tournaments]");
   if (!card) return;
-  const all = getTournaments().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  if (!all.length) return void (card.innerHTML = "<p>No tournaments yet. Create one now.</p>");
-  card.innerHTML = all.map((t) => {
-    const link = `tournament.html?id=${t.id}`;
-    const teamCount = t.teams?.length || 0;
-    const matchCount = t.matches?.length || 0;
-    return `<article class="card" style="padding:14px;margin-bottom:12px">
-      <h3 style="margin:0 0 4px">${esc(t.tournamentName)}</h3>
+  const params = new URLSearchParams(location.search);
+  const search = document.getElementById("tournamentSearch");
+  const gameFilter = document.getElementById("tournamentGameFilter");
+  const sort = document.getElementById("tournamentSort");
+  const requestedGame = params.get("game") || "";
+  if (requestedGame) {
+    gameFilter.value = requestedGame;
+    const note = document.getElementById("activeGameFilterNote");
+    if (note) note.textContent = `Showing only ${requestedGame} tournaments.`;
+  }
+
+  const render = () => {
+    const q = (search.value || "").toLowerCase();
+    const game = gameFilter.value;
+    let all = getTournaments().filter((t) => !isArchivedTournament(t));
+    all = all.filter((t) => {
+      const haystack = `${t.tournamentName} ${t.game} ${t.description || ""}`.toLowerCase();
+      return haystack.includes(q) && (!game || t.game === game);
+    });
+    if (sort.value === "popular") all.sort((a, b) => participantTotal(b) - participantTotal(a));
+    else if (sort.value === "upcoming") all.sort((a, b) => new Date(a.startsAt || a.createdAt) - new Date(b.startsAt || b.createdAt));
+    else if (sort.value === "active") all.sort((a, b) => Number((b.status || "") === "active") - Number((a.status || "") === "active"));
+    else all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (!all.length) {
+      card.innerHTML = `<div class="empty-state"><p>No active tournaments match this view.</p><a class="btn" href="create.html">Create Tournament</a></div>`;
+      return;
+    }
+    card.innerHTML = all.map((t) => tournamentCardHtml(t)).join("");
+    bindTournamentCardCopies(card);
+  };
+
+  [search, gameFilter, sort].forEach((el) => el.addEventListener("input", render));
+  render();
+}
+
+function tournamentCardHtml(t) {
+  const link = `tournament.html?id=${t.id}&share=${t.shareToken || ""}`;
+  const teamCount = t.teams?.length || 0;
+  const matchCount = t.matches?.length || 0;
+  return `<article class="tournament-card card">
+    <img class="tournament-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} tournament banner" loading="lazy">
+    <div class="tournament-card-body">
+      <h3>${esc(t.tournamentName)} <span class="muted-game">(${esc(t.game)})</span></h3>
+      <p>${esc(t.description || "Create teams, schedule matches, submit results, and compete for the top spot.")}</p>
       <div class="tournament-meta">
-        <span class="tag">${esc(t.game)}</span>
-        <span class="tag">${esc(t.status)}</span>
+        <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span>
         <span class="tag">${teamCount} teams</span>
+        <span class="tag">${participantTotal(t)} players</span>
         <span class="tag">${matchCount} matches</span>
+        ${prizeBadge(t)}
+        ${paidEntrySummary(t)}
       </div>
       <a class="btn" href="${link}">Open Tournament</a>
       <a class="btn alt" href="schedule.html?tournament=${t.id}">View Schedule</a>
       <button class="btn alt" data-copy="${link}">Copy Share Link</button>
-    </article>`;
-  }).join("");
-  card.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
+    </div>
+  </article>`;
+}
+
+function bindTournamentCardCopies(root) {
+  root.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
     const abs = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}${b.dataset.copy}`;
     try {
       await navigator.clipboard.writeText(abs);
@@ -733,19 +936,69 @@ function initTournamentDetailPage() {
     return;
   }
   const isAdmin = isTournamentAdmin(t);
+  t.teams = t.teams || [];
   t.matches = (t.matches || []).map((m, i) => normalizeMatch(m, i));
+  t.removedPlayers = t.removedPlayers || [];
+  t.joinRequests = t.joinRequests || [];
+  t.settings = t.settings || { joinApproval: false };
+  t.shareToken = t.shareToken || uid();
+  t.paidEntry = t.paidEntry || { enabled: false, entryFeeEth: "", verificationRequired: false };
+  t.prize = t.prize || { verificationStatus: "none", claims: [], winnerConfirmed: false };
+  saveTournament(t);
 
   root.innerHTML = `
     <div class="card" style="padding:16px;margin-bottom:14px">
+      <img class="detail-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} banner">
       <h2>${esc(t.tournamentName)}</h2>
-      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - Status: ${esc(t.status)}</p>
-      <p><strong>Share Link:</strong> <span id="shareUrl">${location.href}</span></p>
+      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span> ${prizeBadge(t)} ${paidEntrySummary(t)}</p>
+      ${t.description ? `<p>${esc(t.description)}</p>` : ""}
+      ${t.startsAt ? `<p><strong>Starts:</strong> ${esc(t.startsAt.replace("T", " "))}</p>` : ""}
+      ${t.rules ? `<div class="rules-box"><strong>Rules</strong><p>${esc(t.rules)}</p></div>` : ""}
+      <div class="rules-box"><strong>Safe Share Link</strong><p id="shareUrl">${safeShareUrl(t)}</p><p class="hint-text">This link only opens the public tournament page. Admin controls stay protected by creator login or this browser's private admin key.</p></div>
       <a class="btn alt" href="schedule.html?tournament=${t.id}">Open Schedule</a>
       <button class="btn alt" id="copyTournamentLink">Copy Link</button>
-      ${isAdmin && t.status !== "completed" ? '<button class="btn" id="markCompletedBtn">Mark Completed</button>' : ""}
+      ${isAdmin ? `<select id="statusSelect" class="inline-select"><option value="upcoming">Upcoming</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button class="btn" id="saveStatusBtn">Update Status</button>` : ""}
     </div>
+    ${isAdmin ? `<div class="card" style="padding:16px;margin-bottom:14px">
+      <h3>Edit Tournament</h3>
+      <div class="form-grid">
+        <div><label>Name</label><input id="editName" value="${esc(t.tournamentName)}"></div>
+        <div><label>Date & Time</label><input id="editStartsAt" type="datetime-local" value="${esc(t.startsAt || "")}"></div>
+      </div>
+      <div class="form-grid">
+        <div><label>Game</label><select id="editGame"><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select></div>
+        <div><label>Player Limit</label><input id="editPlayerLimit" type="number" min="2" max="256" value="${esc(t.playerLimit || 32)}"></div>
+      </div>
+      <label>Description</label><textarea id="editDescription" rows="3">${esc(t.description)}</textarea>
+      <label>Rules</label><textarea id="editRules" rows="3">${esc(t.rules)}</textarea>
+      <div class="form-grid">
+        <div><label>Banner Image</label><input id="editBanner" type="file" accept="image/*"></div>
+        <div><label>Join Approval</label><select id="editApproval"><option value="false">Open joining</option><option value="true">Approval required</option></select></div>
+      </div>
+      <div class="form-grid">
+        <div><label>Paid Entry</label><select id="editPaidEntry"><option value="false">Free to join</option><option value="true">Require MetaMask payment</option></select></div>
+        <div><label>Entry Fee (ETH)</label><input id="editEntryFeeEth" value="${esc(t.paidEntry?.entryFeeEth)}"></div>
+      </div>
+      <label>Payment Wallet Address</label><input id="editPaymentWallet" value="${esc(t.paymentWallet)}" placeholder="0x...">
+      <div class="form-grid">
+        <div><label>Prize Amount</label><input id="editPrizeAmount" value="${esc(t.prize?.amount)}"></div>
+        <div><label>Prize Type</label><select id="editPrizeType"><option value="">No prize</option><option>ETH</option><option>Cash</option><option>Gift Card</option><option>Merch</option><option>In-game Reward</option></select></div>
+      </div>
+      <div class="form-grid">
+        <div><label>Prize Description</label><input id="editPrizeDescription" value="${esc(t.prize?.description)}"></div>
+        <div><label>Winners</label><input id="editWinnerCount" type="number" min="1" max="16" value="${esc(t.prize?.winnerCount || 1)}"></div>
+      </div>
+      <button class="btn" id="saveTournamentEdit">Save Changes</button>
+      ${t.prize?.type === "ETH" && t.prize?.amount ? `<button class="btn alt" id="fundPrizeBtn">Fund Prize with MetaMask</button>` : ""}
+      ${t.prize?.fundingTx && t.prize?.verificationStatus !== "verified" ? `<button class="btn alt" id="verifyPrizeBtn">Mark Prize Verified</button>` : ""}
+      ${t.prize?.verificationStatus === "verified" ? `<button class="btn alt" id="confirmWinnersBtn">Confirm Winners</button>` : ""}
+      ${t.prize?.fundingTx ? `<p class="success">Prize funding recorded: ${esc(t.prize.fundingTx.txHash)}</p>` : ""}
+      <p id="editMsg" class="error"></p>
+    </div>` : ""}
     <div class="card" style="padding:16px;margin-bottom:14px">
       <h3>Join Tournament</h3>
+      ${t.paidEntry.enabled ? `<div class="rules-box"><strong>Paid Entry Required</strong><p>${esc(t.paidEntry.entryFeeEth)} ETH must be approved in MetaMask before a team is added. Payments go to ${esc(t.paymentWallet)} and the transaction hash is saved with the join record.</p></div>` : ""}
+      <div class="rules-box"><strong>Wallet & Privacy Safety</strong><p>Zoltrakk never asks for seed phrases, private keys, or wallet passwords. Share links are public viewer links, while admin actions require the creator account or local admin key.</p></div>
       <div class="form-grid">
         <div><label>Your Name</label><input id="joinerName"></div>
         <div><label>Choose</label><select id="joinMode"><option value="create">Create Team</option><option value="join">Join Existing Team</option></select></div>
@@ -754,6 +1007,10 @@ function initTournamentDetailPage() {
       <button class="btn" id="joinBtn">Submit</button>
       <p class="error" id="joinMsg"></p>
     </div>
+    ${isAdmin ? `<div class="card" style="padding:16px;margin-bottom:14px">
+      <h3>Join Requests</h3>
+      <div id="joinRequestsList"></div>
+    </div>` : ""}
     <div class="card" style="padding:16px;margin-bottom:14px">
       <h3>Teams (${t.teams.length})</h3>
       <div id="teamsList"></div>
@@ -772,7 +1029,7 @@ function initTournamentDetailPage() {
   const copyBtn = document.getElementById("copyTournamentLink");
   copyBtn.onclick = async () => {
     try {
-      await navigator.clipboard.writeText(location.href);
+      await navigator.clipboard.writeText(safeShareUrl(t));
       copyBtn.textContent = "Link Copied!";
       setTimeout(() => { copyBtn.textContent = "Copy Link"; }, 2000);
     } catch {
@@ -785,6 +1042,93 @@ function initTournamentDetailPage() {
       t.completedAt = nowIso();
       saveTournament(t);
       location.reload();
+    };
+  }
+  if (isAdmin) {
+    document.getElementById("statusSelect").value = t.status || "upcoming";
+    document.getElementById("saveStatusBtn").onclick = () => {
+      t.status = document.getElementById("statusSelect").value;
+      if (t.status === "completed") t.completedAt = nowIso();
+      saveTournament(t);
+      location.reload();
+    };
+    document.getElementById("editGame").value = t.game;
+    document.getElementById("editApproval").value = String(Boolean(t.settings.joinApproval));
+    document.getElementById("editPaidEntry").value = String(Boolean(t.paidEntry.enabled));
+    document.getElementById("editPrizeType").value = t.prize?.type || "";
+    document.getElementById("fundPrizeBtn")?.addEventListener("click", async () => {
+      const editMsg = document.getElementById("editMsg");
+      editMsg.className = "error";
+      editMsg.textContent = "";
+      try {
+        if (!isEthAddress(t.paymentWallet)) throw new Error("Add a valid payment wallet before funding the prize.");
+        const tx = await sendEthWithMetaMask({ to: t.paymentWallet, amountEth: t.prize.amount });
+        t.prize.fundingTx = tx;
+        t.prize.verificationStatus = "pending";
+        saveTournament(t);
+        editMsg.className = "success";
+        editMsg.textContent = "Prize transaction recorded. Review and verify it before advertising this as a rewarded event.";
+        setTimeout(() => location.reload(), 700);
+      } catch (err) {
+        editMsg.textContent = err.message || "MetaMask transaction failed.";
+      }
+    });
+    document.getElementById("verifyPrizeBtn")?.addEventListener("click", () => {
+      t.prize.verificationStatus = "verified";
+      saveTournament(t);
+      location.reload();
+    });
+    document.getElementById("confirmWinnersBtn")?.addEventListener("click", () => {
+      t.prize.winnerConfirmed = true;
+      t.prize.claims = completedWinners(t).map((winner) => ({
+        winner,
+        status: "ready-to-claim",
+        confirmedAt: nowIso()
+      }));
+      saveTournament(t);
+      location.reload();
+    });
+    document.getElementById("saveTournamentEdit").onclick = async () => {
+      const editMsg = document.getElementById("editMsg");
+      editMsg.textContent = "";
+      try {
+        const nextBanner = await readOptionalImage(document.getElementById("editBanner"));
+        const paidEnabled = document.getElementById("editPaidEntry").value === "true";
+        const entryFeeEth = document.getElementById("editEntryFeeEth").value.trim();
+        const paymentWallet = normalizeAddress(document.getElementById("editPaymentWallet").value);
+        if (paidEnabled) {
+          if (!entryFeeEth) throw new Error("Entry fee is required for paid tournaments.");
+          ethToWeiHex(entryFeeEth);
+          if (!isEthAddress(paymentWallet)) throw new Error("Paid tournaments need a valid payment wallet.");
+        }
+        t.tournamentName = document.getElementById("editName").value.trim() || t.tournamentName;
+        t.game = document.getElementById("editGame").value;
+        t.startsAt = document.getElementById("editStartsAt").value;
+        t.description = document.getElementById("editDescription").value.trim();
+        t.rules = document.getElementById("editRules").value.trim();
+        t.playerLimit = Math.max(2, Number(document.getElementById("editPlayerLimit").value) || 32);
+        if (nextBanner) t.bannerImage = nextBanner;
+        t.settings.joinApproval = document.getElementById("editApproval").value === "true";
+        t.paymentWallet = paymentWallet;
+        t.paidEntry = { enabled: paidEnabled, entryFeeEth: paidEnabled ? entryFeeEth : "", verificationRequired: paidEnabled };
+        const prizeType = document.getElementById("editPrizeType").value;
+        t.prize = {
+          amount: document.getElementById("editPrizeAmount").value.trim(),
+          type: prizeType,
+          description: document.getElementById("editPrizeDescription").value.trim(),
+          winnerCount: Math.max(1, Number(document.getElementById("editWinnerCount").value) || 1),
+          verificationStatus: prizeType || document.getElementById("editPrizeAmount").value.trim() ? (t.prize?.verificationStatus === "verified" ? "verified" : "pending") : "none",
+          fundingTx: t.prize?.fundingTx || null,
+          claims: t.prize?.claims || [],
+          winnerConfirmed: Boolean(t.prize?.winnerConfirmed)
+        };
+        saveTournament(t);
+        editMsg.className = "success";
+        editMsg.textContent = "Tournament updated.";
+        setTimeout(() => location.reload(), 500);
+      } catch (err) {
+        editMsg.textContent = err.message;
+      }
     };
   }
 
@@ -804,13 +1148,22 @@ function initTournamentDetailPage() {
     list.innerHTML = t.teams.length ? t.teams.map((tm, idx) => `
       <article class="card" style="padding:10px;margin-bottom:8px">
       <strong>${idx + 1}. ${esc(tm.name)}</strong>
-      <ul>${tm.members.map((m) => `<li>${esc(m.name)}${m.role ? ` - ${esc(m.role)}` : ""}</li>`).join("")}</ul>
+      <ul>${tm.members.map((m, memberIdx) => `<li>${esc(m.name)}${m.role ? ` - ${esc(m.role)}` : ""} ${m.paymentTx ? `<span class="tag verified">Paid</span>` : ""} ${isAdmin && m.paymentTx ? `<span class="hint-text">${esc(m.paymentTx)}</span>` : ""} ${isAdmin ? `<button class="mini-danger" data-remove-member="${tm.id}" data-member="${memberIdx}">Remove</button>` : ""}</li>`).join("")}</ul>
       ${isAdmin ? `<button class="btn alt" data-del="${tm.id}">Delete</button>
       <button class="btn alt" data-up="${tm.id}">Move Up</button>
       <button class="btn alt" data-down="${tm.id}">Move Down</button>` : ""}
       </article>`).join("") : "<p>No teams yet.</p>";
     if (isAdmin) {
       list.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); saveTournament(t); renderAll(); });
+      list.querySelectorAll("[data-remove-member]").forEach((b) => b.onclick = () => {
+        const team = t.teams.find((x) => x.id === b.dataset.removeMember);
+        const member = team?.members?.[Number(b.dataset.member)];
+        if (!team || !member) return;
+        t.removedPlayers.push({ name: member.name.toLowerCase(), removedAt: nowIso(), approvedAgain: false });
+        team.members.splice(Number(b.dataset.member), 1);
+        saveTournament(t);
+        renderAll();
+      });
       list.querySelectorAll("[data-up]").forEach((b) => b.onclick = () => {
         const i = t.teams.findIndex((x) => x.id === b.dataset.up);
         if (i > 0) [t.teams[i - 1], t.teams[i]] = [t.teams[i], t.teams[i - 1]];
@@ -839,27 +1192,99 @@ function initTournamentDetailPage() {
       document.getElementById("manualB").innerHTML = opts;
     }
   };
+  const renderJoinRequests = () => {
+    const list = document.getElementById("joinRequestsList");
+    if (!list) return;
+    const pending = t.joinRequests.filter((r) => r.status === "pending");
+    list.innerHTML = pending.length ? pending.map((r) => `
+      <article class="request-row">
+        <span>${esc(r.name)} wants to ${r.mode === "create" ? `create ${esc(r.teamName)}` : `join ${esc(r.teamName)}`}</span>
+        <button class="btn" data-approve-request="${r.id}">Approve</button>
+        <button class="btn alt" data-deny-request="${r.id}">Deny</button>
+      </article>`).join("") : "<p>No pending requests.</p>";
+    list.querySelectorAll("[data-approve-request]").forEach((b) => b.onclick = () => {
+      const req = t.joinRequests.find((r) => r.id === b.dataset.approveRequest);
+      if (!req) return;
+      req.status = "approved";
+      applyJoin(req);
+      t.removedPlayers = t.removedPlayers.filter((p) => p.name !== req.name.toLowerCase());
+      saveTournament(t);
+      renderAll();
+    });
+    list.querySelectorAll("[data-deny-request]").forEach((b) => b.onclick = () => {
+      const req = t.joinRequests.find((r) => r.id === b.dataset.denyRequest);
+      if (!req) return;
+      req.status = "denied";
+      saveTournament(t);
+      renderAll();
+    });
+  };
 
-  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); };
+  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); renderJoinRequests(); };
   renderAll();
 
-  document.getElementById("joinBtn").onclick = () => {
-    if (t.status === "completed") return;
+  const applyJoin = (join) => {
+    const paymentMeta = join.payment ? { walletAddress: join.walletAddress, paymentTx: join.payment.txHash, paymentStatus: join.paymentStatus } : {};
+    if (join.mode === "create") {
+      t.teams.push({ id: uid(), name: join.teamName, members: [{ name: join.name, role: "Captain", ...paymentMeta }] });
+    } else {
+      const team = t.teams.find((x) => x.id === join.teamId);
+      if (team) team.members.push({ name: join.name, role: "Member", ...paymentMeta });
+    }
+  };
+
+  document.getElementById("joinBtn").onclick = async () => {
+    if (isArchivedTournament(t)) return;
     const msg = document.getElementById("joinMsg");
+    const joinBtn = document.getElementById("joinBtn");
     msg.textContent = "";
+    msg.className = "error";
     const name = (document.getElementById("joinerName").value || "").trim();
     if (!name) return void (msg.textContent = "Enter your name.");
-    if (document.getElementById("joinMode").value === "create") {
+    if (participantTotal(t) >= (t.playerLimit || 32)) return void (msg.textContent = "Player limit reached.");
+    const blocked = t.removedPlayers.some((p) => p.name === name.toLowerCase());
+    if (blocked) return void (msg.textContent = "This player was removed and needs admin approval before rejoining.");
+    const join = { id: uid(), name, mode: document.getElementById("joinMode").value, status: "pending", createdAt: nowIso() };
+    if (join.mode === "create") {
       const tn = (document.getElementById("newTeamName").value || "").trim();
       if (!tn) return void (msg.textContent = "Enter team name.");
       if (t.teams.some((x) => x.name.toLowerCase() === tn.toLowerCase())) return void (msg.textContent = "Team name already exists.");
-      t.teams.push({ id: uid(), name: tn, members: [{ name, role: "Captain" }] });
+      join.teamName = tn;
     } else {
       const team = t.teams.find((x) => x.id === document.getElementById("existingTeamSel").value);
       if (!team) return void (msg.textContent = "No team selected.");
       if (team.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return void (msg.textContent = "You are already in this team.");
-      team.members.push({ name, role: "Member" });
+      join.teamId = team.id;
+      join.teamName = team.name;
     }
+    if (t.paidEntry.enabled) {
+      try {
+        joinBtn.disabled = true;
+        joinBtn.textContent = "Waiting for MetaMask...";
+        msg.textContent = "Approve the entry fee in MetaMask to add your team.";
+        join.payment = await sendEthWithMetaMask({ to: t.paymentWallet, amountEth: t.paidEntry.entryFeeEth });
+        join.walletAddress = join.payment.from;
+        join.paymentStatus = "verified-by-wallet";
+      } catch (err) {
+        msg.textContent = err.message || "Payment was not completed.";
+        joinBtn.disabled = false;
+        joinBtn.textContent = "Submit";
+        return;
+      } finally {
+        joinBtn.disabled = false;
+        joinBtn.textContent = "Submit";
+      }
+    }
+    if (t.settings.joinApproval) {
+      t.joinRequests.push(join);
+      saveTournament(t);
+      renderAll();
+      msg.className = "success";
+      msg.textContent = "Join request sent for admin approval.";
+      return;
+    }
+    join.status = "approved";
+    applyJoin(join);
     saveTournament(t);
     renderAll();
     msg.className = "success";
@@ -1041,6 +1466,41 @@ function initMyTournamentsPage() {
   });
 }
 
+function initArchivePage() {
+  const root = document.getElementById("archiveRoot");
+  if (!root) return;
+  const archived = getTournaments()
+    .filter(isArchivedTournament)
+    .sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt));
+  if (!archived.length) {
+    root.innerHTML = `<div class="empty-state"><p>No archived tournaments yet. Completed and cancelled events will appear here automatically.</p></div>`;
+    return;
+  }
+  root.innerHTML = archived.map((t) => {
+    const winners = completedWinners(t);
+    const standings = (t.teams || []).map((team, i) => `<li>${i + 1}. ${esc(team.name)} (${team.members?.length || 0} players)</li>`).join("");
+    return `<article class="tournament-card card">
+      <img class="tournament-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} tournament banner" loading="lazy">
+      <div class="tournament-card-body">
+        <h3>${esc(t.tournamentName)} <span class="muted-game">(${esc(t.game)})</span></h3>
+        <div class="tournament-meta">
+          <span class="tag status-${esc(t.status)}">${statusLabel(t.status)}</span>
+          <span class="tag">${participantTotal(t)} players</span>
+          <span class="tag">${(t.matches || []).length} results</span>
+          ${prizeBadge(t)}
+        </div>
+        <p><strong>Winners:</strong> ${winners.length ? winners.map(esc).join(", ") : "Not recorded yet"}</p>
+        <details>
+          <summary>Participants and standings</summary>
+          <ol>${standings || "<li>No participants recorded.</li>"}</ol>
+        </details>
+        <a class="btn" href="tournament.html?id=${t.id}">View Details</a>
+        <a class="btn alt" href="schedule.html?tournament=${t.id}">View Results</a>
+      </div>
+    </article>`;
+  }).join("");
+}
+
 function initContactPage() {
   const form = document.getElementById("contactForm");
   const status = document.getElementById("contactStatus");
@@ -1065,6 +1525,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTournamentDetailPage();
   initSchedulePage();
   initMyTournamentsPage();
+  initArchivePage();
   initContactPage();
   initPlayersPage();
 });
