@@ -431,6 +431,16 @@ async function sendEthWithMetaMask({ to, amountEth }) {
   return { from, to: recipient, amountEth: String(amountEth), txHash, chainId: await window.ethereum.request({ method: "eth_chainId" }), paidAt: nowIso() };
 }
 
+async function signWithMetaMask(message) {
+  if (!hasMetaMask()) throw new Error("MetaMask is not available in this browser.");
+  const from = await connectMetaMask();
+  const signature = await window.ethereum.request({
+    method: "personal_sign",
+    params: [message, from]
+  });
+  return { from, signature, message, signedAt: nowIso() };
+}
+
 function safeShareUrl(t) {
   const url = new URL("tournament.html", location.href);
   url.searchParams.set("id", t.id);
@@ -1019,20 +1029,60 @@ function initTournamentDetailPage() {
   t.prize = t.prize || { verificationStatus: "none", claims: [], winnerConfirmed: false };
   saveTournament(t);
 
+  const teamCount = t.teams.length;
+  const matchCount = t.matches.length;
+
   root.innerHTML = `
-    <div class="card" style="padding:16px;margin-bottom:14px">
-      <img class="detail-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} banner">
-      <h2>${esc(t.tournamentName)}</h2>
-      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span> <span class="tag">${t.visibility === "private" ? "Private" : "Public"}</span> <span class="tag">${t.joinType === "request" ? "Approval needed" : "Quick join"}</span> ${prizeBadge(t)} ${paidEntrySummary(t)}</p>
-      ${t.description ? `<p>${esc(t.description)}</p>` : ""}
-      ${t.startsAt ? `<p><strong>Starts:</strong> ${esc(t.startsAt.replace("T", " "))}</p>` : ""}
-      ${t.rules ? `<div class="rules-box"><strong>Rules</strong><p>${esc(t.rules)}</p></div>` : ""}
-      <div class="rules-box"><strong>Safe Share Link</strong><p id="shareUrl">${safeShareUrl(t)}</p><p class="hint-text">This link only opens the public tournament page. Admin controls stay protected by creator login or this browser's private admin key.</p></div>
-      <a class="btn alt" href="schedule.html?tournament=${t.id}">Open Schedule</a>
-      <button class="btn alt" id="copyTournamentLink">Copy Link</button>
-      ${isAdmin ? `<select id="statusSelect" class="inline-select"><option value="upcoming">Upcoming</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select><button class="btn" id="saveStatusBtn">Update Status</button>` : ""}
+    ${/* ── BANNER ── */""}
+    <div class="card" style="overflow:hidden;margin-bottom:18px">
+      <div style="position:relative">
+        <img class="detail-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} banner">
+        <div style="position:absolute;bottom:14px;left:14px;display:flex;flex-wrap:wrap;gap:8px">
+          <span class="tag status-${esc(t.status || "upcoming")}" style="background:var(--surface);backdrop-filter:blur(8px);font-size:.82rem;padding:6px 14px">${statusLabel(t.status)}</span>
+          <span class="tag" style="background:var(--surface);backdrop-filter:blur(8px);font-size:.82rem;padding:6px 14px">${t.visibility === "private" ? "Private" : "Public"}</span>
+          <span class="tag" style="background:var(--surface);backdrop-filter:blur(8px);font-size:.82rem;padding:6px 14px">${t.joinType === "request" ? "Approval needed" : "Quick join"}</span>
+          ${t.paidEntry.enabled ? `<span class="tag" style="background:var(--surface);backdrop-filter:blur(8px);font-size:.82rem;padding:6px 14px;color:var(--primary)">MetaMask verified</span>` : ""}
+          ${prizeBadge(t)}
+        </div>
+      </div>
+      <div style="padding:20px 22px">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:12px">
+          <div>
+            <h2 style="margin:0 0 4px">${esc(t.tournamentName)}</h2>
+            <p style="margin:0;color:var(--muted);font-weight:600">${esc(t.game)} — Hosted by ${esc(t.adminName)}</p>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <a class="btn alt" href="schedule.html?tournament=${t.id}" style="padding:10px 18px;font-size:.85rem">Schedule</a>
+            <button class="btn ghost" id="copyTournamentLink" style="padding:10px 18px;font-size:.85rem">Copy Link</button>
+            ${isAdmin ? `
+            <select id="statusSelect" class="inline-select" style="width:auto;min-width:120px;padding:9px 12px;font-size:.85rem">
+              <option value="upcoming">Upcoming</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button class="btn" id="saveStatusBtn" style="padding:10px 18px;font-size:.85rem">Update</button>` : ""}
+          </div>
+        </div>
+        ${t.description ? `<p style="margin-top:14px">${esc(t.description)}</p>` : ""}
+        <div class="stats-row" style="margin-top:16px">
+          <div class="stat-card" style="padding:14px 12px"><strong>${t.startsAt ? esc(t.startsAt.replace("T", " ")) : "TBD"}</strong><span>Start Date</span></div>
+          <div class="stat-card" style="padding:14px 12px"><strong>${t.playerLimit || 32}</strong><span>Player Limit</span></div>
+          <div class="stat-card" style="padding:14px 12px"><strong>${teamCount}</strong><span>Teams</span></div>
+          <div class="stat-card" style="padding:14px 12px"><strong>${matchCount}</strong><span>Matches</span></div>
+          ${t.paidEntry.enabled ? `<div class="stat-card" style="padding:14px 12px"><strong>${esc(t.paidEntry.entryFeeEth)} ETH</strong><span>Entry Fee</span></div>` : ""}
+        </div>
+        ${t.rules ? `<div class="rules-box" style="margin-top:14px"><strong>Rules</strong><p style="margin:8px 0 0">${esc(t.rules)}</p></div>` : ""}
+        <div class="rules-box" style="margin-top:10px">
+          <strong>Share Link</strong>
+          <p style="margin:6px 0 0;font-size:.9rem;word-break:break-all" id="shareUrl">${safeShareUrl(t)}</p>
+          <p class="hint-text" style="margin:4px 0 0">Admin controls stay protected by creator login or private admin key.</p>
+        </div>
+      </div>
     </div>
-    ${isAdmin ? `<div class="card" style="padding:16px;margin-bottom:14px">
+
+    ${/* ── ADMIN: EDIT TOURNAMENT ── */""}
+    ${isAdmin ? `<div class="card" style="padding:20px 22px;margin-bottom:18px">
       <h3>Edit Tournament</h3>
       <div class="form-grid">
         <div><label>Name</label><input id="editName" value="${esc(t.tournamentName)}"></div>
@@ -1041,18 +1091,18 @@ function initTournamentDetailPage() {
       <div>
         <label>Game</label><select id="editGame"><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select>
       </div>
-      <label>Description</label><textarea id="editDescription" rows="3">${esc(t.description)}</textarea>
-      <label>Rules</label><textarea id="editRules" rows="3">${esc(t.rules)}</textarea>
+      <label>Description</label><textarea id="editDescription" rows="2">${esc(t.description)}</textarea>
+      <label>Rules</label><textarea id="editRules" rows="2">${esc(t.rules)}</textarea>
       <div class="form-grid">
         <div><label>Banner Image</label><input id="editBanner" type="file" accept="image/*"></div>
         <div><label>Visibility</label><select id="editVisibility"><option value="public">Public</option><option value="private">Private</option></select></div>
       </div>
       <div class="form-grid">
-        <div><label>Join Mode</label><select id="editJoinType"><option value="quick">Quick join — first come</option><option value="request">Request — approval needed</option></select></div>
+        <div><label>Join Mode</label><select id="editJoinType"><option value="quick">Quick join</option><option value="request">Request approval</option></select></div>
         <div><label>Player Limit</label><input id="editPlayerLimit" type="number" min="2" max="256" value="${esc(t.playerLimit || 32)}"></div>
       </div>
       <div class="form-grid">
-        <div><label>Paid Entry</label><select id="editPaidEntry"><option value="false">Free to join</option><option value="true">Require MetaMask payment</option></select></div>
+        <div><label>Paid Entry</label><select id="editPaidEntry"><option value="false">Free</option><option value="true">MetaMask verify</option></select></div>
         <div><label>Entry Fee (ETH)</label><input id="editEntryFeeEth" value="${esc(t.paidEntry?.entryFeeEth)}"></div>
       </div>
       <label>Payment Wallet Address</label><input id="editPaymentWallet" value="${esc(t.paymentWallet)}" placeholder="0x...">
@@ -1064,44 +1114,76 @@ function initTournamentDetailPage() {
         <div><label>Prize Description</label><input id="editPrizeDescription" value="${esc(t.prize?.description)}"></div>
         <div><label>Winners</label><input id="editWinnerCount" type="number" min="1" max="16" value="${esc(t.prize?.winnerCount || 1)}"></div>
       </div>
-      <button class="btn" id="saveTournamentEdit">Save Changes</button>
-      ${t.prize?.type === "ETH" && t.prize?.amount ? `<button class="btn alt" id="fundPrizeBtn">Fund Prize with MetaMask</button>` : ""}
+      <button class="btn" id="saveTournamentEdit" style="margin-top:6px">Save Changes</button>
+      ${t.prize?.type === "ETH" && t.prize?.amount ? `<button class="btn alt" id="fundPrizeBtn">Fund Prize via MetaMask</button>` : ""}
       ${t.prize?.fundingTx && t.prize?.verificationStatus !== "verified" ? `<button class="btn alt" id="verifyPrizeBtn">Mark Prize Verified</button>` : ""}
       ${t.prize?.verificationStatus === "verified" ? `<button class="btn alt" id="confirmWinnersBtn">Confirm Winners</button>` : ""}
-      ${t.prize?.fundingTx ? `<p class="success">Prize funding recorded: ${esc(t.prize.fundingTx.txHash)}</p>` : ""}
-      <p id="editMsg" class="error"></p>
+      ${t.prize?.fundingTx ? `<p class="success" style="margin-top:8px">Prize funding recorded: ${esc(t.prize.fundingTx.txHash)}</p>` : ""}
+      <p id="editMsg" class="error" style="margin-top:8px"></p>
     </div>` : ""}
-    <div class="card" style="padding:16px;margin-bottom:14px">
+
+    ${/* ── JOIN TOURNAMENT ── */""}
+    <div class="card" style="padding:20px 22px;margin-bottom:18px">
       <h3>Join Tournament</h3>
-      <p class="hint-text" style="margin-top:0">${t.joinType === "request" ? "This tournament requires creator approval. Submit a request and wait for the host to accept." : "This tournament uses quick join — first come, first served."}</p>
+      <p class="hint-text" style="margin-top:0">${t.joinType === "request" ? "This tournament requires creator approval. Submit a request and the host will review it." : "Quick join — first come, first served."}</p>
       ${t.visibility === "private" ? `<div class="rules-box"><strong>Private Tournament</strong><p>You can only access this tournament through the share link. It won't appear in the public Browse list.</p></div>` : ""}
-      ${t.paidEntry.enabled ? `<div class="rules-box"><strong>Paid Entry Required</strong><p>${esc(t.paidEntry.entryFeeEth)} ETH must be approved in MetaMask before a team is added. Payments go to ${esc(t.paymentWallet)} and the transaction hash is saved with the join record.</p></div>` : ""}
-      <div class="rules-box"><strong>MetaMask & Wallet Safety</strong><p>Need MetaMask? Install the extension from <a href="https://metamask.io" target="_blank">metamask.io</a> (Chrome, Firefox, Edge, Brave). Create a wallet, then when you join a paid tournament, MetaMask will pop up automatically — review and confirm the transaction. Zoltrakk never asks for seed phrases, private keys, or wallet passwords.</p></div>
+      ${t.paidEntry.enabled ? `<div class="rules-box" style="border-color:color-mix(in srgb, var(--primary) 40%, var(--border))"><strong>MetaMask Required</strong><p>Joining this tournament requires signing a free MetaMask verification. Your wallet address is recorded. No ETH is sent.</p></div>` : ""}
       <div class="form-grid">
-        <div><label>Your Name</label><input id="joinerName"></div>
+        <div><label>Your Name</label><input id="joinerName" placeholder="Enter your name"></div>
         <div><label>Choose</label><select id="joinMode"><option value="create">Create Team</option><option value="join">Join Existing Team</option></select></div>
       </div>
       <div id="squadQuickSelect"></div>
       <div id="joinDynamic"></div>
-      <button class="btn" id="joinBtn">Submit</button>
+      <button class="btn" id="joinBtn" style="margin-top:10px">Submit</button>
       <p class="error" id="joinMsg"></p>
+      <div class="rules-box" style="margin-top:10px"><strong>MetaMask & Wallet Safety</strong><p>Need MetaMask? Install from <a href="https://metamask.io" target="_blank">metamask.io</a> (Chrome, Firefox, Edge, Brave). Create a wallet, then sign the verification popup. Zoltrakk never asks for seed phrases, private keys, or wallet passwords. Signatures are free.</p></div>
     </div>
-    ${isAdmin ? `<div class="card" style="padding:16px;margin-bottom:14px">
+
+    ${/* ── ADMIN: ADD PLAYER ── */""}
+    ${isAdmin ? `<div class="card" style="padding:20px 22px;margin-bottom:18px">
+      <h3>Add Player (Admin)</h3>
+      <div class="form-grid">
+        <div><label>Player Name</label><input id="adminAddPlayerName" placeholder="Enter player name"></div>
+        <div>
+          <label>Add to Team</label>
+          <select id="adminAddTeamSelect"><option value="">— Create new team —</option>${t.teams.map((tm) => `<option value="${tm.id}">${esc(tm.name)}</option>`).join("")}</select>
+        </div>
+      </div>
+      <div>
+        <label>New Team Name <span class="hint-text">(if creating a new team)</span></label>
+        <input id="adminAddNewTeamName" placeholder="Team name for new team">
+      </div>
+      ${t.paidEntry.enabled ? `<p class="hint-text">MetaMask will ask you to sign a free verification.</p>` : ""}
+      <button class="btn" id="adminAddPlayerBtn" style="margin-top:8px">Add Player</button>
+      <p id="adminAddPlayerMsg" class="error" style="margin-top:6px"></p>
+    </div>` : ""}
+
+    ${/* ── JOIN REQUESTS (admin only) ── */""}
+    ${isAdmin ? `<div class="card" style="padding:20px 22px;margin-bottom:18px">
       <h3>Join Requests</h3>
       <div id="joinRequestsList"></div>
     </div>` : ""}
-    <div class="card" style="padding:16px;margin-bottom:14px">
-      <h3>Teams (${t.teams.length})</h3>
+
+    ${/* ── TEAMS ── */""}
+    <div class="card" style="padding:20px 22px;margin-bottom:18px">
+      <h3>Teams <span class="badge" style="font-size:.75rem;vertical-align:middle;margin-left:8px">${teamCount}</span></h3>
       <div id="teamsList"></div>
     </div>
-    <div class="card" style="padding:16px">
-      <h3>Matches</h3>
-      ${isAdmin ? `<button class="btn" id="autoMatchBtn">Auto Generate Matches</button>
-      <div class="form-grid" style="margin-top:10px">
-        <div><select id="manualA"></select></div><div><select id="manualB"></select></div>
-      </div><button class="btn alt" id="manualMatchBtn">Add Manual Match</button>
-      <p style="margin-top:10px;color:var(--muted);font-size:.9rem">Edit full schedule (dates, stages, winners) on the <a href="schedule.html?tournament=${t.id}">Schedule page</a>.</p>` : ""}
-      <div id="matchesList" style="margin-top:10px"></div>
+
+    ${/* ── MATCHES ── */""}
+    <div class="card" style="padding:20px 22px;margin-bottom:18px">
+      <h3>Matches <span class="badge" style="font-size:.75rem;vertical-align:middle;margin-left:8px">${matchCount}</span></h3>
+      ${isAdmin ? `
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:10px 0">
+        <button class="btn" id="autoMatchBtn" style="padding:10px 16px;font-size:.85rem">Auto Generate</button>
+        <button class="btn alt" id="manualMatchBtn" style="padding:10px 16px;font-size:.85rem">Add Manual Match</button>
+      </div>
+      <div class="form-grid" style="margin-top:6px">
+        <div><label>Team A</label><select id="manualA"></select></div>
+        <div><label>Team B</label><select id="manualB"></select></div>
+      </div>
+      <p style="margin-top:8px;color:var(--muted);font-size:.88rem">Edit full schedule (dates, stages, winners) on the <a href="schedule.html?tournament=${t.id}">Schedule page</a>.</p>` : ""}
+      <div id="matchesList" style="margin-top:12px"></div>
     </div>
   `;
 
@@ -1213,6 +1295,84 @@ function initTournamentDetailPage() {
         editMsg.textContent = err.message;
       }
     };
+
+    const adminAddBtn = document.getElementById("adminAddPlayerBtn");
+    if (adminAddBtn) {
+      adminAddBtn.onclick = async () => {
+        const msg = document.getElementById("adminAddPlayerMsg");
+        msg.textContent = "";
+        msg.className = "error";
+        const name = (document.getElementById("adminAddPlayerName").value || "").trim();
+        if (!name) return void (msg.textContent = "Enter a player name.");
+        if (participantTotal(t) >= (t.playerLimit || 32)) return void (msg.textContent = "Player limit reached.");
+        const blocked = t.removedPlayers.some((p) => p.name === name.toLowerCase());
+        if (blocked) {
+          t.removedPlayers = t.removedPlayers.filter((p) => p.name !== name.toLowerCase());
+        }
+        const teamId = document.getElementById("adminAddTeamSelect").value;
+        const newTeamName = (document.getElementById("adminAddNewTeamName").value || "").trim();
+        if (!teamId && !newTeamName) return void (msg.textContent = "Select a team or enter a new team name.");
+        if (teamId) {
+          const team = t.teams.find((x) => x.id === teamId);
+          if (!team) return void (msg.textContent = "Team not found.");
+          if (team.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return void (msg.textContent = "Player already in this team.");
+          const join = { id: uid(), name, mode: "join", teamId, teamName: team.name, status: "approved", createdAt: nowIso() };
+          if (t.paidEntry.enabled) {
+            try {
+              adminAddBtn.disabled = true;
+              adminAddBtn.textContent = "Connecting MetaMask...";
+              const verification = await signWithMetaMask(`Admin add: ${name} to ${t.tournamentName}`);
+              join.walletAddress = verification.from;
+              join.paymentStatus = "verified-by-wallet";
+              join.signature = verification.signature;
+              join.verifiedAt = verification.signedAt;
+            } catch (err) {
+              msg.textContent = err.message || "Verification cancelled.";
+              adminAddBtn.disabled = false;
+              adminAddBtn.textContent = "Add Player";
+              return;
+            } finally {
+              adminAddBtn.disabled = false;
+              adminAddBtn.textContent = "Add Player";
+            }
+          }
+          applyJoin(join);
+          saveTournament(t);
+          renderAll();
+          msg.className = "success";
+          msg.textContent = `${name} added to ${team.name}.`;
+        } else {
+          if (t.teams.some((x) => x.name.toLowerCase() === newTeamName.toLowerCase())) return void (msg.textContent = "Team name already exists.");
+          const join = { id: uid(), name, mode: "create", teamName: newTeamName, status: "approved", createdAt: nowIso() };
+          if (t.paidEntry.enabled) {
+            try {
+              adminAddBtn.disabled = true;
+              adminAddBtn.textContent = "Connecting MetaMask...";
+              const verification = await signWithMetaMask(`Admin add: ${name} to new team ${newTeamName}`);
+              join.walletAddress = verification.from;
+              join.paymentStatus = "verified-by-wallet";
+              join.signature = verification.signature;
+              join.verifiedAt = verification.signedAt;
+            } catch (err) {
+              msg.textContent = err.message || "Verification cancelled.";
+              adminAddBtn.disabled = false;
+              adminAddBtn.textContent = "Add Player";
+              return;
+            } finally {
+              adminAddBtn.disabled = false;
+              adminAddBtn.textContent = "Add Player";
+            }
+          }
+          applyJoin(join);
+          saveTournament(t);
+          renderAll();
+          msg.className = "success";
+          msg.textContent = `${name} added to new team ${newTeamName}.`;
+        }
+        document.getElementById("adminAddPlayerName").value = "";
+        document.getElementById("adminAddNewTeamName").value = "";
+      };
+    }
   }
 
   const joinDynamic = document.getElementById("joinDynamic");
@@ -1368,13 +1528,15 @@ function initTournamentDetailPage() {
     if (t.paidEntry.enabled) {
       try {
         joinBtn.disabled = true;
-        joinBtn.textContent = "Waiting for MetaMask...";
-        msg.textContent = "Approve the entry fee in MetaMask to add your team.";
-        join.payment = await sendEthWithMetaMask({ to: t.paymentWallet, amountEth: t.paidEntry.entryFeeEth });
-        join.walletAddress = join.payment.from;
+        joinBtn.textContent = "Connecting MetaMask...";
+        msg.textContent = "Sign the verification in MetaMask to join (free).";
+        const verification = await signWithMetaMask(`Join tournament: ${t.tournamentName} as ${name}`);
+        join.walletAddress = verification.from;
         join.paymentStatus = "verified-by-wallet";
+        join.signature = verification.signature;
+        join.verifiedAt = verification.signedAt;
       } catch (err) {
-        msg.textContent = err.message || "Payment was not completed.";
+        msg.textContent = err.message || "Verification was not completed.";
         joinBtn.disabled = false;
         joinBtn.textContent = "Submit";
         return;
@@ -1448,64 +1610,86 @@ function initSchedulePage() {
 
     if (!rows.length) {
       root.innerHTML = `
-        <div class="schedule-toolbar card" style="padding:16px">${buildToolbar()}</div>
-        <div class="card" style="padding:20px;margin-top:14px"><p>Selected tournament has no matches yet. Open the tournament and use Auto Generate Matches or Add Manual Match.</p></div>`;
+        <div class="schedule-toolbar card" style="padding:18px">${buildToolbar()}</div>
+        <div class="card" style="padding:24px;margin-top:16px;text-align:center"><p style="color:var(--muted);margin:0">Selected tournament has no matches yet. Open the tournament and use Auto Generate Matches or Add Manual Match.</p></div>`;
       bindToolbar();
       return;
     }
 
     root.innerHTML = `
-      <div class="schedule-toolbar card" style="padding:16px">${buildToolbar()}</div>
-      <div class="table-wrap card" style="margin-top:14px">
-        <table>
-          <tr><th>Tournament</th><th>Date</th><th>Stage</th><th>Match</th><th>Time</th><th>Status</th><th>Winner</th>${rows.some((r) => r.isAdmin) ? "<th>Edit</th>" : ""}</tr>
-          ${rows.map(({ t, m, isAdmin }) => `
-            <tr class="${m.stage === "Grand Final" ? "final-match" : ""}">
-              <td>${esc(t.tournamentName)}</td>
-              <td>${esc(m.date || "TBD")}</td>
-              <td>${esc(m.stage)}</td>
-              <td>${esc(m.a)} vs ${esc(m.b)}</td>
-              <td>${esc(m.time || "TBD")}</td>
-              <td><span class="match-status ${esc(m.status)}">${esc(m.status)}</span></td>
-              <td>${esc(m.winner || "—")}</td>
-              ${isAdmin ? `<td><a class="btn alt" href="#edit-${m.id}">Edit</a></td>` : ""}
-            </tr>
-            ${isAdmin ? `<tr id="edit-${m.id}"><td colspan="8">
-              <div class="match-edit-row" data-match-id="${m.id}" data-tournament-id="${t.id}">
-                <div><label>Date</label><input data-field="date" value="${esc(m.date)}"></div>
-                <div><label>Time</label><input data-field="time" value="${esc(m.time)}"></div>
-                <div><label>Stage</label><select data-field="stage">
-                  <option ${m.stage === "Qualifier" ? "selected" : ""}>Qualifier</option>
-                  <option ${m.stage === "Semi Final" ? "selected" : ""}>Semi Final</option>
-                  <option ${m.stage === "Grand Final" ? "selected" : ""}>Grand Final</option>
-                </select></div>
-                <div><label>Status</label><select data-field="status">
-                  <option value="scheduled" ${m.status === "scheduled" ? "selected" : ""}>scheduled</option>
-                  <option value="completed" ${m.status === "completed" ? "selected" : ""}>completed</option>
-                </select></div>
-                <div><label>Winner</label><select data-field="winner">
-                  <option value="">—</option>
-                  <option value="${esc(m.a)}" ${m.winner === m.a ? "selected" : ""}>${esc(m.a)}</option>
-                  <option value="${esc(m.b)}" ${m.winner === m.b ? "selected" : ""}>${esc(m.b)}</option>
-                </select></div>
-                <div><button class="btn" data-save-match>Save Match</button></div>
-              </div>
-            </td></tr>` : ""}
-          `).join("")}
-        </table>
+      <div class="schedule-toolbar card" style="padding:18px;margin-bottom:18px">${buildToolbar()}</div>
+
+      ${/* ── TABLE VIEW ── */""}
+      <div class="card" style="overflow:hidden;margin-bottom:24px">
+        <div style="padding:14px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),color-mix(in srgb,var(--primary) 6%,var(--surface)));border-bottom:1px solid var(--border)">
+          <h3 style="margin:0;font-size:.95rem;text-transform:uppercase;letter-spacing:1px">Match Schedule</h3>
+        </div>
+        <div class="table-wrap" style="border:none">
+          <table>
+            <tr><th>Tournament</th><th>Match</th><th>Stage</th><th>Date</th><th>Time</th><th>Status</th><th>Winner</th>${rows.some((r) => r.isAdmin) ? "<th>Actions</th>" : ""}</tr>
+            ${rows.map(({ t, m, isAdmin }) => `
+              <tr class="${m.stage === "Grand Final" ? "final-match" : ""}">
+                <td><strong>${esc(t.tournamentName)}</strong></td>
+                <td><strong>${esc(m.a)}</strong> vs <strong>${esc(m.b)}</strong></td>
+                <td><span class="tag">${esc(m.stage)}</span></td>
+                <td>${esc(m.date || "—")}</td>
+                <td>${esc(m.time || "—")}</td>
+                <td><span class="match-status ${esc(m.status)}">${esc(m.status)}</span></td>
+                <td>${esc(m.winner || "—")}</td>
+                ${isAdmin ? `<td><button class="btn alt" style="padding:6px 12px;font-size:.78rem" data-toggle-edit="${m.id}">Edit</button></td>` : ""}
+              </tr>
+              ${isAdmin ? `<tr style="display:none" data-edit-row="${m.id}"><td colspan="8" style="padding:0;border:none">
+                <div class="match-edit-row" data-match-id="${m.id}" data-tournament-id="${t.id}" style="margin:0;border-radius:0">
+                  <div><label>Date</label><input data-field="date" value="${esc(m.date)}" placeholder="YYYY-MM-DD"></div>
+                  <div><label>Time</label><input data-field="time" value="${esc(m.time)}" placeholder="HH:MM"></div>
+                  <div><label>Stage</label><select data-field="stage">
+                    <option ${m.stage === "Qualifier" ? "selected" : ""}>Qualifier</option>
+                    <option ${m.stage === "Semi Final" ? "selected" : ""}>Semi Final</option>
+                    <option ${m.stage === "Grand Final" ? "selected" : ""}>Grand Final</option>
+                  </select></div>
+                  <div><label>Status</label><select data-field="status">
+                    <option value="scheduled" ${m.status === "scheduled" ? "selected" : ""}>scheduled</option>
+                    <option value="completed" ${m.status === "completed" ? "selected" : ""}>completed</option>
+                  </select></div>
+                  <div><label>Winner</label><select data-field="winner">
+                    <option value="">—</option>
+                    <option value="${esc(m.a)}" ${m.winner === m.a ? "selected" : ""}>${esc(m.a)}</option>
+                    <option value="${esc(m.b)}" ${m.winner === m.b ? "selected" : ""}>${esc(m.b)}</option>
+                  </select></div>
+                  <div><button class="btn" data-save-match style="padding:9px 16px;font-size:.85rem">Save</button></div>
+                </div>
+              </td></tr>` : ""}
+            `).join("")}
+          </table>
+        </div>
       </div>
-      <h3 style="margin-top:24px">Bracket Overview</h3>
-      <div class="bracket-grid">
-        ${bracket.map(({ t, m }) => `
-          <article class="bracket-card ${m.stage === "Grand Final" ? "final" : ""}">
-            <p class="tag">${esc(t.tournamentName)}</p>
-            <h3>${esc(m.a)} vs ${esc(m.b)}</h3>
-            <p>${esc(m.stage)} · ${esc(m.date || "TBD")} ${esc(m.time || "")}</p>
-            <span class="match-status ${esc(m.status)}">${esc(m.status)}</span>
-          </article>`).join("")}
+
+      ${/* ── BRACKET OVERVIEW ── */""}
+      <div class="card" style="overflow:hidden">
+        <div style="padding:14px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),color-mix(in srgb,var(--primary) 6%,var(--surface)));border-bottom:1px solid var(--border)">
+          <h3 style="margin:0;font-size:.95rem;text-transform:uppercase;letter-spacing:1px">Bracket Overview</h3>
+        </div>
+        <div style="padding:18px">
+          <div class="bracket-grid">
+            ${bracket.map(({ t, m }) => `
+              <article class="bracket-card ${m.stage === "Grand Final" ? "final" : ""}" style="padding:18px">
+                <p class="tag" style="margin-bottom:8px">${esc(t.tournamentName)}</p>
+                <h3 style="margin:0 0 8px;font-size:1rem">${esc(m.a)} vs ${esc(m.b)}</h3>
+                <p style="color:var(--muted);font-size:.85rem;margin:0 0 10px">${esc(m.stage)} · ${esc(m.date || "TBD")} ${esc(m.time || "")}</p>
+                <span class="match-status ${esc(m.status)}">${esc(m.status)}</span>
+                ${m.winner ? `<span style="margin-left:8px;color:var(--ok);font-weight:700">Winner: ${esc(m.winner)}</span>` : ""}
+              </article>`).join("")}
+          </div>
+        </div>
       </div>`;
 
     bindToolbar();
+    root.querySelectorAll("[data-toggle-edit]").forEach((btn) => {
+      btn.onclick = () => {
+        const row = document.querySelector(`[data-edit-row="${btn.dataset.toggleEdit}"]`);
+        if (row) row.style.display = row.style.display === "none" ? "table-row" : "none";
+      };
+    });
     root.querySelectorAll("[data-save-match]").forEach((btn) => {
       btn.onclick = () => {
         const row = btn.closest("[data-match-id]");
