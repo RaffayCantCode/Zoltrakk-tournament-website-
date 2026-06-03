@@ -3,50 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zoltrakk Arena</title>
+  <title>Zoltrakk Arena — Next-Gen Tournament Platform</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
   <div class="logo-wrap"><a href="index.html" class="logo-text">Zoltrakk Arena</a></div>
-  <nav><a href="index.html">Home</a><a href="schedule.html">Schedule</a><a href="players.html">Players</a><a href="tournaments.html">Browse</a><a href="create.html">Create</a><a href="team.html">Teams</a><a href="contact.html">Support</a><a href="my-tournaments.html">My Hub</a><a href="signup.html">Sign Up</a><a href="login.html">Login</a></nav>
+  <nav>
+    <div class="nav-main">
+      <a href="index.html">Home</a>
+      <a href="tournaments.html">Browse</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="players.html">Players</a>
+      <a href="create.html">Create</a>
+      <a href="team.html">Teams</a>
+      <a href="my-tournaments.html">My Hub</a>
+      <a href="contact.html">Support</a>
+    </div>
+    <div class="nav-auth">
+      <a href="signup.html">Sign Up</a>
+      <a href="login.html">Login</a>
+    </div>
+  </nav>
   <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
 
 <section class="hero">
   <img class="hero-brand-logo" src="images/logo.png" alt="Zoltrakk Arena logo">
-  <h1>Create. Join. Dominate.</h1>
-  <p>Zoltrakk Arena is a clean gaming tournament platform for creating events, joining competitions, managing players, tracking brackets, and crowning winners.</p>
-  <a class="btn" href="create.html">Create Tournament</a>
-  <a class="btn alt" href="tournaments.html">Browse Tournaments</a>
+  <h1>Create. Compete. Conquer.</h1>
+  <p>The next-generation tournament platform built for casual gamers, competitive clans, and professional organisers. Zero setup, full control, worldwide reach.</p>
+  <div class="hero-actions">
+    <a class="btn" href="create.html">Create Tournament</a>
+    <a class="btn alt" href="tournaments.html">Browse Tournaments</a>
+    <a class="btn ghost" href="#audiences">See Plans</a>
+  </div>
 </section>
 
 <section>
   <div class="container">
     <h2>Supported Games</h2>
     <div class="games-grid">
-      <a class="game-tile" href="tournaments.html?game=League%20of%20Legends"><img class="game-art" src="images/game-lol-art.png" alt="League of Legends artwork"><img class="game-icon" src="images/game-lol-logo.svg" alt="League of Legends"><h3>League of Legends</h3><p>Lane-based 5v5 tournaments</p></a>
-      <a class="game-tile" href="tournaments.html?game=Valorant"><img class="game-art" src="images/game-valorant-art.png" alt="Valorant artwork"><img class="game-icon" src="images/game-valorant-logo.svg" alt="Valorant"><h3>Valorant</h3><p>Role-based tactical brackets</p></a>
-      <a class="game-tile" href="tournaments.html?game=CS2"><img class="game-art" src="images/game-cs2-art.png" alt="Counter-Strike 2 artwork"><img class="game-icon" src="images/game-cs2-logo.svg" alt="Counter-Strike 2"><h3>Counter-Strike 2</h3><p>Standard 5-player squads</p></a>
-      <a class="game-tile" href="tournaments.html?game=Overwatch"><img class="game-art" src="images/game-overwatch-art.png" alt="Overwatch 2 artwork"><img class="game-icon" src="images/game-ow2-logo.png" alt="Overwatch 2"><h3>Overwatch</h3><p>Tank, damage, support teams</p></a>
+      <a class="game-tile" href="tournaments.html?game=League%20of%20Legends">
+        <img class="game-art" src="images/game-lol-banner.jpg" alt="League of Legends artwork">
+        <img class="game-icon" src="images/game-lol-logo.svg" alt="League of Legends">
+        <h3>League of Legends</h3>
+        <p>Lane-based 5v5 tournaments</p>
+      </a>
+      <a class="game-tile" href="tournaments.html?game=Valorant">
+        <img class="game-art" src="images/game-valorant-banner.jpg" alt="Valorant artwork">
+        <img class="game-icon" src="images/game-valorant-logo.svg" alt="Valorant">
+        <h3>Valorant</h3>
+        <p>Role-based tactical brackets</p>
+      </a>
+      <a class="game-tile" href="tournaments.html?game=CS2">
+        <img class="game-art" src="images/game-cs2-banner.jpg" alt="Counter-Strike 2 artwork">
+        <img class="game-icon" src="images/game-cs2-logo.svg" alt="Counter-Strike 2">
+        <h3>Counter-Strike 2</h3>
+        <p>Standard 5-player squads</p>
+      </a>
+      <a class="game-tile" href="tournaments.html?game=Overwatch">
+        <img class="game-art" src="images/game-ow2-banner.jpg" alt="Overwatch 2 artwork">
+        <img class="game-icon" src="images/game-ow2-logo.png" alt="Overwatch 2">
+        <h3>Overwatch</h3>
+        <p>Tank, damage, support teams</p>
+      </a>
     </div>
   </div>
 </section>
 
-<section data-home-stats>
-  <div class="container card" style="padding:24px">
-    <h2>Live Arena Snapshot</h2>
-    <p>Tournament data syncs between your browser and the Netlify cloud database so friends worldwide can browse the same events.</p>
-    <div class="stats-row" id="homeStatsRow"></div>
+<div class="section-divider" id="audiences">Built For Everyone</div>
+
+<section class="callout-section">
+  <div class="container">
+    <h2 style="text-align:center;display:block">Choose Your Arena</h2>
+    <p style="text-align:center;color:var(--muted);max-width:700px;margin:0 auto 28px">Whether you're here for fun, glory, or business — Zoltrakk has a lane for you.</p>
+    <div class="audience-grid">
+      <div class="audience-card">
+        <div class="audience-icon">🎮</div>
+        <h3>For Casuals</h3>
+        <p>Jump in, play with friends, have fun. No commitment, no pressure.</p>
+        <ul class="audience-features">
+          <li>Free-to-join tournaments</li>
+          <li>Quick join — first come, first served</li>
+          <li>Play with your squad in minutes</li>
+          <li>No account? No problem — browse freely</li>
+          <li>Works on mobile & desktop</li>
+        </ul>
+      </div>
+      <div class="audience-card">
+        <div class="audience-icon">🏆</div>
+        <h3>For Competitives</h3>
+        <p>Climb the ranks, prove your skill, win real prizes. Full bracket integrity.</p>
+        <ul class="audience-features">
+          <li>Paid entry with ETH prize pools</li>
+          <li>Role-accurate team lineups</li>
+          <li>Live bracket tracking & schedule</li>
+          <li>Player profile with rank & stats</li>
+          <li>Approval-based entry for serious events</li>
+        </ul>
+      </div>
+      <div class="audience-card">
+        <div class="audience-icon">🏢</div>
+        <h3>For Organisers</h3>
+        <p>Host events at scale. Manage players, matches, and prizes — all from one dashboard.</p>
+        <ul class="audience-features">
+          <li>Create private or public tournaments</li>
+          <li>Full admin panel for match management</li>
+          <li>Request-based entry approval</li>
+          <li>MetaMask wallet for prize funding</li>
+          <li>Cloud-synced worldwide access</li>
+        </ul>
+      </div>
+    </div>
   </div>
 </section>
 
+<div class="section-divider">Live Arena</div>
+
 <section>
-  <div class="container card" style="padding:24px">
-    <h2>About Zoltrakk Tournament</h2>
+  <div class="container card" style="padding:28px">
+    <h2>Live Arena Snapshot <span class="live-indicator">Live</span></h2>
+    <p>Tournament data syncs between your browser and the Netlify cloud database so friends worldwide can browse the same events in real time.</p>
+    <div class="stats-row" id="homeStatsRow">
+      <div class="stat-card"><strong>0</strong><span>Active Tournaments</span></div>
+      <div class="stat-card"><strong>0</strong><span>Players Registered</span></div>
+      <div class="stat-card"><strong>0</strong><span>Games Supported</span></div>
+      <div class="stat-card"><strong>0</strong><span>Matches Played</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">About The Platform</div>
+
+<section>
+  <div class="container">
     <div class="about-grid">
-      <div>
-        <p><strong>Zoltrakk Arena</strong> is a student-built tournament platform for friends, school clubs, and online communities who want a real bracket workflow without complicated enterprise tools.</p>
+      <div class="card" style="padding:24px">
+        <h2 style="margin-top:0">About Zoltrakk Arena</h2>
+        <p><strong>Zoltrakk Arena</strong> is a next-generation tournament platform built for friends, school clubs, online communities, and professional organisers who want a real bracket workflow without complicated enterprise tools.</p>
         <p>Create a tournament in minutes, share one link, let players join teams, and manage matchups from the admin panel. Every supported game uses role-accurate lineups so your event feels authentic.</p>
         <ul class="about-points">
           <li><strong>Create &amp; share:</strong> Host sets rules, game, and optional first team; everyone else joins through your tournament link.</li>
@@ -55,14 +149,17 @@
           <li><strong>Cloud + local:</strong> Accounts and tournaments save in your browser and sync to Netlify storage for worldwide access.</li>
         </ul>
       </div>
-      <div>
+      <div class="card" style="padding:24px">
+        <h2 style="margin-top:0">Brand &amp; Identity</h2>
         <p><strong>Brand colors</strong> used across the UI:</p>
         <div class="color-swatches">
           <span class="color-swatch" style="background:#cf0210" title="Primary red"></span>
           <span class="color-swatch" style="background:#4508c9" title="Accent purple"></span>
         </div>
-        <p style="margin-top:16px"><strong>Built for:</strong> casual scrims, class tournaments, weekend LAN parties, and recurring friend leagues.</p>
+        <p style="margin-top:16px"><strong>Built for:</strong> casual scrims, class tournaments, weekend LAN parties, recurring friend leagues, and pro-level circuits.</p>
         <p><strong>Pages included:</strong> Home, Schedule, Players, Browse, Create, Teams, Support, Sign Up, Login, and My Hub for creators.</p>
+        <p><strong>Powered by:</strong> Vanilla JS, Netlify Blob storage, MetaMask Ethereum wallet, and your competitive spirit.</p>
+        <a class="btn alt" href="create.html" style="margin-top:6px">Start a Tournament</a>
       </div>
     </div>
   </div>
@@ -70,17 +167,61 @@
 
 <section>
   <div class="container">
-    <h2>Why It Feels Complete</h2>
+    <h2>Why Zoltrakk Stands Out</h2>
     <div class="feature-list">
-      <article class="feature-item"><h3>Shareable Links</h3><p>Host once and share a direct tournament page with all friends.</p></article>
-      <article class="feature-item"><h3>Team Actions</h3><p>Players can create new teams or join teams already listed.</p></article>
-      <article class="feature-item"><h3>Admin Controls</h3><p>Delete teams, reorder teams, auto-match, or manually set matchups.</p></article>
-      <article class="feature-item"><h3>My Tournament History</h3><p>Logged-in creators can track and clean completed tournaments.</p></article>
+      <article class="feature-item">
+        <div class="feature-icon">🔗</div>
+        <h3>Shareable Links</h3>
+        <p>Host once and share a direct tournament page with all friends. Private events stay hidden from the browse page.</p>
+      </article>
+      <article class="feature-item">
+        <div class="feature-icon">👥</div>
+        <h3>Team Actions</h3>
+        <p>Players can create new teams or join teams already listed. Squad up fast with the quick-select dropdown.</p>
+      </article>
+      <article class="feature-item">
+        <div class="feature-icon">⚙️</div>
+        <h3>Admin Controls</h3>
+        <p>Delete teams, reorder teams, auto-match, or manually set matchups. Full control from one panel.</p>
+      </article>
+      <article class="feature-item">
+        <div class="feature-icon">📊</div>
+        <h3>My Tournament Hub</h3>
+        <p>Logged-in creators can track and manage all their tournaments. Clean archive of completed events.</p>
+      </article>
+      <article class="feature-item">
+        <div class="feature-icon">🌐</div>
+        <h3>Worldwide Sync</h3>
+        <p>Cloud-synchronised via Netlify. Create on one device, manage on another. Your data follows you.</p>
+      </article>
+      <article class="feature-item">
+        <div class="feature-icon">💰</div>
+        <h3>ETH Prize Pools</h3>
+        <p>Connect MetaMask to fund prize pools or require entry fees. Transparent, trustless, web3-ready.</p>
+      </article>
     </div>
   </div>
 </section>
 
-<footer>&copy; 2026 Zoltrakk Tournament <span data-sync-badge></span></footer>
+<footer>
+  <div class="footer-links">
+    <a href="index.html">Home</a>
+    <a href="tournaments.html">Browse</a>
+    <a href="create.html">Create</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="players.html">Players</a>
+    <a href="team.html">Teams</a>
+    <a href="my-tournaments.html">My Hub</a>
+    <a href="contact.html">Support</a>
+    <a href="signup.html">Sign Up</a>
+    <a href="login.html">Login</a>
+  </div>
+  <div>
+    <span class="footer-brand">Zoltrakk Arena</span>
+    <span style="display:block;margin-top:8px">&copy; 2026 Zoltrakk Tournament — Built for players, by players.</span>
+  </div>
+  <span data-sync-badge style="display:inline-block;margin-top:10px"></span>
+</footer>
 <script src="script.js"></script>
 </body>
 </html>

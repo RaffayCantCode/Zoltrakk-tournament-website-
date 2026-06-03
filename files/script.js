@@ -7,10 +7,10 @@ const STORE_API = "/.netlify/functions/store";
 const DEFAULT_PLAYER_IMAGE = "images/player-default.svg";
 const MAX_PLAYER_IMAGE_BYTES = 450000;
 const DEFAULT_BANNERS = {
-  "League of Legends": "images/game-lol-art.png",
-  "Valorant": "images/game-valorant-art.png",
-  "CS2": "images/game-cs2-art.png",
-  "Overwatch": "images/game-overwatch-art.png"
+  "League of Legends": "images/game-lol-banner.jpg",
+  "Valorant": "images/game-valorant-banner.jpg",
+  "CS2": "images/game-cs2-banner.jpg",
+  "Overwatch": "images/game-ow2-banner.jpg"
 };
 const OPEN_STATUSES = ["upcoming", "active"];
 
@@ -118,10 +118,11 @@ async function syncAllFromCloud() {
   if (syncInFlight) return;
   syncInFlight = true;
   try {
-    const [cloudUsers, cloudTournaments, cloudParticipants] = await Promise.all([
+    const [cloudUsers, cloudTournaments, cloudParticipants, cloudUserPlayers] = await Promise.all([
       fetchCloudCollection("users"),
       fetchCloudCollection("tournaments"),
-      fetchCloudCollection("participants")
+      fetchCloudCollection("participants"),
+      fetchCloudCollection("user_players")
     ]);
     cloudOnline = true;
 
@@ -142,6 +143,16 @@ async function syncAllFromCloud() {
     );
     localStorage.setItem(REG_KEY, JSON.stringify(mergedParticipants));
     pushCloudCollection("participants", mergedParticipants).catch(() => {});
+
+    const user = getCurrentUser();
+    if (user && Array.isArray(cloudUserPlayers)) {
+      const myCloud = cloudUserPlayers.find((u) => u.userId === user.id);
+      if (myCloud && Array.isArray(myCloud.players)) {
+        const localPlayers = getUserPlayers();
+        const merged = mergeByUpdatedAt(localPlayers, myCloud.players);
+        localStorage.setItem(userPlayersKey(user.id), JSON.stringify(merged));
+      }
+    }
   } catch {
     cloudOnline = false;
   } finally {
@@ -185,6 +196,22 @@ function setParticipants(data) {
   const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
   localStorage.setItem(REG_KEY, JSON.stringify(withIds));
   pushCloudCollection("participants", withIds).catch(() => {});
+}
+
+function userPlayersKey(userId) { return `zoltrakk_players_${userId}`; }
+
+function getUserPlayers() {
+  const user = getCurrentUser();
+  if (!user) return [];
+  return JSON.parse(localStorage.getItem(userPlayersKey(user.id)) || "[]");
+}
+
+function setUserPlayers(data) {
+  const user = getCurrentUser();
+  if (!user) return;
+  const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
+  localStorage.setItem(userPlayersKey(user.id), JSON.stringify(withIds));
+  pushCloudCollection("user_players", { userId: user.id, players: withIds }).catch(() => {});
 }
 
 function initTheme() {
@@ -417,7 +444,9 @@ function paidEntrySummary(t) {
 }
 
 function playersForDisplay() {
-  return getParticipants().map((p) => ({
+  const user = getCurrentUser();
+  if (!user) return [];
+  return getUserPlayers().map((p) => ({
     id: p.id,
     name: p.name,
     game: p.game,
@@ -443,36 +472,21 @@ async function initPlayersPage() {
   const grid = document.getElementById("playerGrid");
   if (!grid) return;
 
-  const render = () => {
-    const players = playersForDisplay();
-    const q = (document.getElementById("searchPlayer")?.value || "").toLowerCase();
-    const game = document.getElementById("filterGame")?.value || "";
-    const rank = document.getElementById("filterRank")?.value || "";
-    let filtered = players.filter((p) => {
-      const rankVal = p.rank || "Unranked";
-      return p.name.toLowerCase().includes(q) && (!game || p.game === game) && (!rank || rankVal === rank);
-    });
-    const rankOrder = { Diamond: 1, Platinum: 2, Gold: 3, Silver: 4, Unranked: 5 };
-    filtered = filtered.sort((a, b) => (rankOrder[a.rank] || 99) - (rankOrder[b.rank] || 99));
-
-    if (!filtered.length) {
-      grid.innerHTML = `<div class="empty-state"><p>No registered players yet. Use the form above to add your first player card with an optional photo.</p></div>`;
-      return;
-    }
-
-    grid.innerHTML = filtered.map((p) => `
-      <div class="flip-wrap"><article class="player-card"><div class="player-card-inner">
-      <img src="${p.image}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_PLAYER_IMAGE}'">
-      <div class="player-meta">
-      <h3>${esc(p.name)}${p.rank === "Diamond" ? '<span class="diamond">DIA</span>' : ""}</h3>
-      <p>${esc(p.game)}</p><span class="badge">${esc(p.rank)}</span></div></div></article></div>`).join("");
-  };
-
-  ["searchPlayer", "filterGame", "filterRank"].forEach((id) => document.getElementById(id)?.addEventListener("input", render));
-  render();
-
   const form = document.getElementById("regForm");
   if (!form) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    form.innerHTML = `<p class="error">Login required to manage your squad.</p>
+      <p style="margin:12px 0;color:var(--muted)">Register players under your account so you can quickly add them to tournaments.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">
+        <a class="btn" href="login.html">Go to Login</a>
+        <a class="btn alt" href="signup.html">Create Account</a>
+      </div>`;
+    grid.innerHTML = `<div class="empty-state"><p>Login to view and manage your squad.</p></div>`;
+    return;
+  }
+
   const list = document.getElementById("participantsList");
   const total = document.getElementById("totalRegistered");
   const msg = document.getElementById("regMsg");
@@ -499,12 +513,40 @@ async function initPlayersPage() {
     });
   }
 
+  const renderGrid = () => {
+    const players = playersForDisplay();
+    const q = (document.getElementById("searchPlayer")?.value || "").toLowerCase();
+    const game = document.getElementById("filterGame")?.value || "";
+    const rank = document.getElementById("filterRank")?.value || "";
+    let filtered = players.filter((p) => {
+      const rankVal = p.rank || "Unranked";
+      return p.name.toLowerCase().includes(q) && (!game || p.game === game) && (!rank || rankVal === rank);
+    });
+    const rankOrder = { Diamond: 1, Platinum: 2, Gold: 3, Silver: 4, Unranked: 5 };
+    filtered = filtered.sort((a, b) => (rankOrder[a.rank] || 99) - (rankOrder[b.rank] || 99));
+
+    if (!filtered.length) {
+      grid.innerHTML = `<div class="empty-state"><p>No players in your squad yet. Use the form to register up to 10 players.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = filtered.map((p) => `
+      <div class="flip-wrap"><article class="player-card"><div class="player-card-inner">
+      <img src="${p.image}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_PLAYER_IMAGE}'">
+      <div class="player-meta">
+      <h3>${esc(p.name)}${p.rank === "Diamond" ? '<span class="diamond">DIA</span>' : ""}</h3>
+      <p>${esc(p.game)}</p><span class="badge">${esc(p.rank)}</span></div></div></article></div>`).join("");
+  };
+
+  ["searchPlayer", "filterGame", "filterRank"].forEach((id) => document.getElementById(id)?.addEventListener("input", renderGrid));
+  renderGrid();
+
   const renderParticipants = () => {
-    const all = getParticipants();
+    const all = getUserPlayers();
     total.textContent = all.length;
     if (!all.length) {
-      list.innerHTML = "<li><span>No players registered yet.</span></li>";
-      render();
+      list.innerHTML = "<li><span>Your squad is empty. Register players below.</span></li>";
+      renderGrid();
       return;
     }
     list.innerHTML = all.map((p, i) => {
@@ -514,12 +556,12 @@ async function initPlayersPage() {
       return `<li>${thumb}<span>${esc(p.name)} · ${esc(p.game)}${p.rank ? ` · ${esc(p.rank)}` : ""}</span><button data-i="${i}">Remove</button></li>`;
     }).join("");
     list.querySelectorAll("button").forEach((b) => b.onclick = () => {
-      const a = getParticipants();
+      const a = getUserPlayers();
       a.splice(+b.dataset.i, 1);
-      setParticipants(a);
+      setUserPlayers(a);
       renderParticipants();
     });
-    render();
+    renderGrid();
   };
 
   form.addEventListener("submit", async (e) => {
@@ -530,22 +572,22 @@ async function initPlayersPage() {
     const game = document.getElementById("regGame").value;
     const rank = document.getElementById("regRank")?.value || "";
     if (!name) return void (msg.textContent = "Player name is required.");
-    const all = getParticipants();
-    if (all.length >= 10) return void (msg.textContent = "Tournament limit reached (10 players).");
+    const all = getUserPlayers();
+    if (all.length >= 10) return void (msg.textContent = "Squad limit reached (10 players per account).");
     if (all.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      return void (msg.textContent = "A player with this name is already registered.");
+      return void (msg.textContent = "A player with this name is already in your squad.");
     }
     try {
       const image = await readOptionalImage(imageInput);
       all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
-      setParticipants(all);
+      setUserPlayers(all);
       form.reset();
       if (imagePreview) {
         imagePreview.classList.add("hidden");
         imagePreview.innerHTML = "";
       }
       msg.className = "success";
-      msg.textContent = "Player registered successfully.";
+      msg.textContent = `Player "${name}" added to your squad.`;
       renderParticipants();
     } catch (err) {
       msg.textContent = err.message;
@@ -776,7 +818,9 @@ function initCreateTournamentPage() {
       ownerUserId: user.id,
       ownerEmail: user.email,
       status: "upcoming",
-      settings: { joinApproval: false },
+      visibility: document.getElementById("tournamentVisibility").value,
+      joinType: document.getElementById("tournamentJoinType").value,
+      settings: { joinApproval: document.getElementById("tournamentJoinType").value === "request" },
       removedPlayers: [],
       joinRequests: [],
       paymentWallet,
@@ -847,10 +891,12 @@ function initTournamentsPage() {
     if (note) note.textContent = `Showing only ${requestedGame} tournaments.`;
   }
 
+  let refreshTimer = null;
+
   const render = () => {
     const q = (search.value || "").toLowerCase();
     const game = gameFilter.value;
-    let all = getTournaments().filter((t) => !isArchivedTournament(t));
+    let all = getTournaments().filter((t) => !isArchivedTournament(t) && t.visibility !== "private");
     all = all.filter((t) => {
       const haystack = `${t.tournamentName} ${t.game} ${t.description || ""}`.toLowerCase();
       return haystack.includes(q) && (!game || t.game === game);
@@ -861,7 +907,7 @@ function initTournamentsPage() {
     else all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     if (!all.length) {
-      card.innerHTML = `<div class="empty-state"><p>No active tournaments match this view.</p><a class="btn" href="create.html">Create Tournament</a></div>`;
+      card.innerHTML = `<div class="empty-state"><p>No public tournaments match this view.</p><a class="btn" href="create.html">Create Tournament</a></div>`;
       return;
     }
     card.innerHTML = all.map((t) => tournamentCardHtml(t)).join("");
@@ -870,12 +916,38 @@ function initTournamentsPage() {
 
   [search, gameFilter, sort].forEach((el) => el.addEventListener("input", render));
   render();
+
+  const startRealtimeRefresh = () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(async () => {
+      await syncAllFromCloud();
+      render();
+    }, 8000);
+  };
+  const pauseBtn = document.createElement("button");
+  pauseBtn.className = "btn alt";
+  pauseBtn.textContent = "Live: ON";
+  pauseBtn.style.cssText = "margin-left:10px;font-size:.82rem;padding:5px 10px";
+  pauseBtn.onclick = () => {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+      pauseBtn.textContent = "Live: OFF";
+    } else {
+      startRealtimeRefresh();
+      pauseBtn.textContent = "Live: ON";
+    }
+  };
+  const note = document.getElementById("activeGameFilterNote");
+  if (note) note.after(pauseBtn);
+  startRealtimeRefresh();
 }
 
 function tournamentCardHtml(t) {
   const link = `tournament.html?id=${t.id}&share=${t.shareToken || ""}`;
   const teamCount = t.teams?.length || 0;
   const matchCount = t.matches?.length || 0;
+  const joinLabel = t.joinType === "request" ? "Approval needed" : "Quick join";
   return `<article class="tournament-card card">
     <img class="tournament-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} tournament banner" loading="lazy">
     <div class="tournament-card-body">
@@ -886,6 +958,7 @@ function tournamentCardHtml(t) {
         <span class="tag">${teamCount} teams</span>
         <span class="tag">${participantTotal(t)} players</span>
         <span class="tag">${matchCount} matches</span>
+        <span class="tag">${esc(joinLabel)}</span>
         ${prizeBadge(t)}
         ${paidEntrySummary(t)}
       </div>
@@ -950,7 +1023,7 @@ function initTournamentDetailPage() {
     <div class="card" style="padding:16px;margin-bottom:14px">
       <img class="detail-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} banner">
       <h2>${esc(t.tournamentName)}</h2>
-      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span> ${prizeBadge(t)} ${paidEntrySummary(t)}</p>
+      <p>${esc(t.game)} - Admin: ${esc(t.adminName)} - <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span> <span class="tag">${t.visibility === "private" ? "Private" : "Public"}</span> <span class="tag">${t.joinType === "request" ? "Approval needed" : "Quick join"}</span> ${prizeBadge(t)} ${paidEntrySummary(t)}</p>
       ${t.description ? `<p>${esc(t.description)}</p>` : ""}
       ${t.startsAt ? `<p><strong>Starts:</strong> ${esc(t.startsAt.replace("T", " "))}</p>` : ""}
       ${t.rules ? `<div class="rules-box"><strong>Rules</strong><p>${esc(t.rules)}</p></div>` : ""}
@@ -965,15 +1038,18 @@ function initTournamentDetailPage() {
         <div><label>Name</label><input id="editName" value="${esc(t.tournamentName)}"></div>
         <div><label>Date & Time</label><input id="editStartsAt" type="datetime-local" value="${esc(t.startsAt || "")}"></div>
       </div>
-      <div class="form-grid">
-        <div><label>Game</label><select id="editGame"><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select></div>
-        <div><label>Player Limit</label><input id="editPlayerLimit" type="number" min="2" max="256" value="${esc(t.playerLimit || 32)}"></div>
+      <div>
+        <label>Game</label><select id="editGame"><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select>
       </div>
       <label>Description</label><textarea id="editDescription" rows="3">${esc(t.description)}</textarea>
       <label>Rules</label><textarea id="editRules" rows="3">${esc(t.rules)}</textarea>
       <div class="form-grid">
         <div><label>Banner Image</label><input id="editBanner" type="file" accept="image/*"></div>
-        <div><label>Join Approval</label><select id="editApproval"><option value="false">Open joining</option><option value="true">Approval required</option></select></div>
+        <div><label>Visibility</label><select id="editVisibility"><option value="public">Public</option><option value="private">Private</option></select></div>
+      </div>
+      <div class="form-grid">
+        <div><label>Join Mode</label><select id="editJoinType"><option value="quick">Quick join — first come</option><option value="request">Request — approval needed</option></select></div>
+        <div><label>Player Limit</label><input id="editPlayerLimit" type="number" min="2" max="256" value="${esc(t.playerLimit || 32)}"></div>
       </div>
       <div class="form-grid">
         <div><label>Paid Entry</label><select id="editPaidEntry"><option value="false">Free to join</option><option value="true">Require MetaMask payment</option></select></div>
@@ -997,12 +1073,15 @@ function initTournamentDetailPage() {
     </div>` : ""}
     <div class="card" style="padding:16px;margin-bottom:14px">
       <h3>Join Tournament</h3>
+      <p class="hint-text" style="margin-top:0">${t.joinType === "request" ? "This tournament requires creator approval. Submit a request and wait for the host to accept." : "This tournament uses quick join — first come, first served."}</p>
+      ${t.visibility === "private" ? `<div class="rules-box"><strong>Private Tournament</strong><p>You can only access this tournament through the share link. It won't appear in the public Browse list.</p></div>` : ""}
       ${t.paidEntry.enabled ? `<div class="rules-box"><strong>Paid Entry Required</strong><p>${esc(t.paidEntry.entryFeeEth)} ETH must be approved in MetaMask before a team is added. Payments go to ${esc(t.paymentWallet)} and the transaction hash is saved with the join record.</p></div>` : ""}
-      <div class="rules-box"><strong>Wallet & Privacy Safety</strong><p>Zoltrakk never asks for seed phrases, private keys, or wallet passwords. Share links are public viewer links, while admin actions require the creator account or local admin key.</p></div>
+      <div class="rules-box"><strong>MetaMask & Wallet Safety</strong><p>Need MetaMask? Install the extension from <a href="https://metamask.io" target="_blank">metamask.io</a> (Chrome, Firefox, Edge, Brave). Create a wallet, then when you join a paid tournament, MetaMask will pop up automatically — review and confirm the transaction. Zoltrakk never asks for seed phrases, private keys, or wallet passwords.</p></div>
       <div class="form-grid">
         <div><label>Your Name</label><input id="joinerName"></div>
         <div><label>Choose</label><select id="joinMode"><option value="create">Create Team</option><option value="join">Join Existing Team</option></select></div>
       </div>
+      <div id="squadQuickSelect"></div>
       <div id="joinDynamic"></div>
       <button class="btn" id="joinBtn">Submit</button>
       <p class="error" id="joinMsg"></p>
@@ -1053,6 +1132,8 @@ function initTournamentDetailPage() {
       location.reload();
     };
     document.getElementById("editGame").value = t.game;
+    document.getElementById("editVisibility").value = t.visibility || "public";
+    document.getElementById("editJoinType").value = t.joinType || "quick";
     document.getElementById("editApproval").value = String(Boolean(t.settings.joinApproval));
     document.getElementById("editPaidEntry").value = String(Boolean(t.paidEntry.enabled));
     document.getElementById("editPrizeType").value = t.prize?.type || "";
@@ -1108,7 +1189,9 @@ function initTournamentDetailPage() {
         t.rules = document.getElementById("editRules").value.trim();
         t.playerLimit = Math.max(2, Number(document.getElementById("editPlayerLimit").value) || 32);
         if (nextBanner) t.bannerImage = nextBanner;
-        t.settings.joinApproval = document.getElementById("editApproval").value === "true";
+        t.visibility = document.getElementById("editVisibility").value;
+        t.joinType = document.getElementById("editJoinType").value;
+        t.settings.joinApproval = t.joinType === "request";
         t.paymentWallet = paymentWallet;
         t.paidEntry = { enabled: paidEnabled, entryFeeEth: paidEnabled ? entryFeeEth : "", verificationRequired: paidEnabled };
         const prizeType = document.getElementById("editPrizeType").value;
@@ -1133,6 +1216,7 @@ function initTournamentDetailPage() {
   }
 
   const joinDynamic = document.getElementById("joinDynamic");
+  const squadSelect = document.getElementById("squadQuickSelect");
   const renderJoinDynamic = () => {
     if (document.getElementById("joinMode").value === "create") {
       joinDynamic.innerHTML = `<label>Team Name</label><input id="newTeamName" placeholder="Team Rockets">`;
@@ -1142,6 +1226,30 @@ function initTournamentDetailPage() {
   };
   renderJoinDynamic();
   document.getElementById("joinMode").onchange = renderJoinDynamic;
+
+  const renderSquadQuickSelect = () => {
+    const user = getCurrentUser();
+    if (!user) { squadSelect.innerHTML = ""; return; }
+    const myPlayers = getUserPlayers();
+    if (!myPlayers.length) {
+      squadSelect.innerHTML = `<p class="hint-text">No players in your squad. <a href="players.html">Register players</a> for quick join.</p>`;
+      return;
+    }
+    squadSelect.innerHTML = `<label style="margin-top:10px">Quick Select from My Squad</label>
+      <select id="squadPlayerSelect"><option value="">— Type name manually —</option>
+      ${myPlayers.map((p) => `<option value="${esc(p.id)}" data-name="${esc(p.name)}" data-game="${esc(p.game)}">${esc(p.name)} (${esc(p.game)})</option>`).join("")}
+      </select>`;
+    const sel = document.getElementById("squadPlayerSelect");
+    if (sel) {
+      sel.onchange = () => {
+        const opt = sel.options[sel.selectedIndex];
+        if (opt && opt.value) {
+          document.getElementById("joinerName").value = opt.getAttribute("data-name");
+        }
+      };
+    }
+  };
+  renderSquadQuickSelect();
 
   const renderTeams = () => {
     const list = document.getElementById("teamsList");
@@ -1220,7 +1328,7 @@ function initTournamentDetailPage() {
     });
   };
 
-  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); renderJoinRequests(); };
+  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); renderJoinRequests(); renderSquadQuickSelect(); };
   renderAll();
 
   const applyJoin = (join) => {

@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 
 const STORE_NAME = "zoltrakk-arena";
-const ALLOWED = new Set(["users", "tournaments", "participants"]);
+const ALLOWED = new Set(["users", "tournaments", "participants", "user_players"]);
 
 function corsHeaders() {
   return {
