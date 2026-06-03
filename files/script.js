@@ -16,6 +16,17 @@ const OPEN_STATUSES = ["upcoming", "active"];
 
 let cloudOnline = false;
 let syncInFlight = false;
+let lastSyncTime = null;
+const LAST_SYNC_KEY = "zoltrakk_last_sync";
+
+function getLastSyncTime() {
+  const stored = localStorage.getItem(LAST_SYNC_KEY);
+  return stored || null;
+}
+function setLastSyncTime() {
+  lastSyncTime = nowIso();
+  localStorage.setItem(LAST_SYNC_KEY, lastSyncTime);
+}
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
@@ -107,16 +118,25 @@ function injectSyncBadges() {
 
 function updateSyncBadge() {
   injectSyncBadges();
+  const lastSync = getLastSyncTime();
+  const timeStr = lastSync ? ` · Last sync: ${lastSync.replace("T", " ").slice(0, 16)}` : "";
   document.querySelectorAll("[data-sync-badge]").forEach((el) => {
     el.innerHTML = cloudOnline
-      ? '<span class="sync-badge online">Cloud sync active</span>'
-      : '<span class="sync-badge offline">Local mode (deploy on Netlify for cloud)</span>';
+      ? `<span class="sync-badge online">Cloud connected${timeStr}</span>`
+      : `<span class="sync-badge offline">Cloud offline · <button class="btn ghost" id="manualSyncBtn" style="padding:2px 8px;font-size:.75rem;border:none;background:transparent;color:var(--muted);text-decoration:underline;cursor:pointer">Sync now</button></span>`;
+    const syncBtn = document.getElementById("manualSyncBtn");
+    if (syncBtn) syncBtn.onclick = async () => {
+      syncBtn.textContent = "Syncing...";
+      await syncAllFromCloud();
+      location.reload();
+    };
   });
 }
 
 async function syncAllFromCloud() {
   if (syncInFlight) return;
   syncInFlight = true;
+  let cloudReachable = false;
   try {
     const [cloudUsers, cloudTournaments, cloudParticipants, cloudUserPlayers] = await Promise.all([
       fetchCloudCollection("users"),
@@ -124,17 +144,16 @@ async function syncAllFromCloud() {
       fetchCloudCollection("participants"),
       fetchCloudCollection("user_players")
     ]);
+    cloudReachable = true;
     cloudOnline = true;
 
     const localUsers = getUsers();
     const mergedUsers = mergeUsers(localUsers, cloudUsers);
     setUsers(mergedUsers, { skipCloud: true });
-    pushCloudCollection("users", mergedUsers).catch(() => {});
 
     const localTournaments = getTournaments();
     const mergedTournaments = mergeByUpdatedAt(localTournaments, cloudTournaments);
     setTournaments(mergedTournaments, { skipCloud: true });
-    pushCloudCollection("tournaments", mergedTournaments).catch(() => {});
 
     const localParticipants = JSON.parse(localStorage.getItem(REG_KEY) || "[]");
     const mergedParticipants = mergeByUpdatedAt(
@@ -142,7 +161,6 @@ async function syncAllFromCloud() {
       cloudParticipants
     );
     localStorage.setItem(REG_KEY, JSON.stringify(mergedParticipants));
-    pushCloudCollection("participants", mergedParticipants).catch(() => {});
 
     const user = getCurrentUser();
     if (user && Array.isArray(cloudUserPlayers)) {
@@ -155,6 +173,19 @@ async function syncAllFromCloud() {
     }
   } catch {
     cloudOnline = false;
+  }
+  // Always push local data to cloud whether fetch succeeded or not.
+  // This seeds a fresh cloud store and recovers from any fetch failure.
+  try {
+    await Promise.all([
+      pushCloudCollection("users", getUsers()).catch(() => {}),
+      pushCloudCollection("tournaments", getTournaments()).catch(() => {}),
+      pushCloudCollection("participants", JSON.parse(localStorage.getItem(REG_KEY) || "[]")).catch(() => {})
+    ]);
+    if (!cloudReachable) cloudOnline = true;
+    setLastSyncTime();
+  } catch {
+    if (!cloudReachable) cloudOnline = false;
   } finally {
     syncInFlight = false;
     updateSyncBadge();
@@ -865,10 +896,13 @@ function initCreateTournamentPage() {
     lineupFields.innerHTML = "";
     hint.textContent = "";
     msg.className = "success";
-    const base = `${location.origin}${location.pathname.replace(/\/[^/]*$/, "/")}`;
-    const link = `${base}tournament.html?id=${tId}&share=${t.shareToken}`;
+    msg.innerHTML = `<p style="margin:0"><strong>Syncing to cloud...</strong> <span class="live-indicator" style="display:inline-flex;vertical-align:middle">Syncing</span></p>`;
+    try {
+      await pushCloudCollection("tournaments", getTournaments());
+    } catch {}
+    const link = safeShareUrl(t);
     msg.innerHTML = `
-      <p style="margin:0 0 10px"><strong>Tournament created!</strong> Share the link with friends so they can join teams.</p>
+      <p style="margin:0 0 10px"><strong>Tournament created & synced!</strong> Share the link with friends so they can join teams.</p>
       <p style="word-break:break-all;margin:0 0 12px"><a href="${link}">${link}</a></p>
       <div style="display:flex;flex-wrap:wrap;gap:10px">
         <a class="btn" href="${link}">Open Tournament</a>
@@ -1005,19 +1039,46 @@ function initTournamentDetailPage() {
   const root = document.getElementById("tournamentDetailRoot");
   if (!root) return;
   const id = new URLSearchParams(location.search).get("id");
-  const all = getTournaments();
-  const t = all.find((x) => x.id === id);
+  if (!id) { root.innerHTML = `<div class="card" style="padding:20px"><p>No tournament ID in URL.</p><a class="btn" href="tournaments.html">Browse Tournaments</a></div>`; return; }
+  function fetchTournamentFromStore() {
+    const all = getTournaments();
+    return all.find((x) => x.id === id);
+  }
+  let t = fetchTournamentFromStore();
   if (!t) {
-    root.innerHTML = `<div class="card" style="padding:20px">
-      <p>Tournament not found on this device yet.</p>
-      <p>Ask the host for the share link, or wait a moment and <button class="btn alt" type="button" id="retryTournamentLoad">Refresh</button> after cloud sync.</p>
-      <a class="btn" href="tournaments.html">Browse Tournaments</a></div>`;
-    document.getElementById("retryTournamentLoad")?.addEventListener("click", async () => {
-      await syncAllFromCloud();
-      location.reload();
-    });
+    root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+      <p style="font-size:1.1rem;margin:0 0 8px;font-weight:700">Loading tournament...</p>
+      <p style="color:var(--muted);margin:0 0 14px">Fetching from cloud storage.</p>
+      <div class="live-indicator" style="margin:0 auto">Syncing</div>
+    </div>`;
+    (async () => {
+      try {
+        await syncAllFromCloud();
+        t = fetchTournamentFromStore();
+      } catch {}
+      if (!t) {
+        root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+          <p style="font-size:1.1rem;margin:0 0 8px;font-weight:700">Tournament not found</p>
+          <p style="color:var(--muted);margin:0 0 4px">This tournament hasn't been synced to this device yet.</p>
+          <p style="color:var(--muted);margin:0 0 16px">Make sure the host has created the tournament on a <strong>deployed Netlify site</strong> so the cloud storage is shared. Local browser storage does not sync across devices.</p>
+          <button class="btn alt" id="retryTournamentLoad" style="margin-bottom:8px">Retry Cloud Sync</button>
+          <a class="btn" href="tournaments.html">Browse Tournaments</a>
+        </div>`;
+        document.getElementById("retryTournamentLoad")?.addEventListener("click", async () => {
+          await syncAllFromCloud(); location.reload();
+        });
+        return;
+      }
+      renderDetail(t);
+    })();
     return;
   }
+  renderDetail(t);
+}
+
+function renderDetail(t) {
+  const root = document.getElementById("tournamentDetailRoot");
+  if (!root) return;
   const isAdmin = isTournamentAdmin(t);
   t.teams = t.teams || [];
   t.matches = (t.matches || []).map((m, i) => normalizeMatch(m, i));
@@ -1028,7 +1089,6 @@ function initTournamentDetailPage() {
   t.paidEntry = t.paidEntry || { enabled: false, entryFeeEth: "", verificationRequired: false };
   t.prize = t.prize || { verificationStatus: "none", claims: [], winnerConfirmed: false };
   saveTournament(t);
-
   const teamCount = t.teams.length;
   const matchCount = t.matches.length;
 
@@ -1820,4 +1880,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   initArchivePage();
   initContactPage();
   initPlayersPage();
+  // Background re-sync 30s after load to ensure any newly created data is pushed
+  setTimeout(async () => {
+    try {
+      const tournaments = getTournaments();
+      const users = getUsers();
+      const participants = JSON.parse(localStorage.getItem(REG_KEY) || "[]");
+      await Promise.all([
+        pushCloudCollection("tournaments", tournaments).catch(() => {}),
+        pushCloudCollection("users", users).catch(() => {}),
+        pushCloudCollection("participants", participants).catch(() => {})
+      ]);
+      cloudOnline = true;
+      setLastSyncTime();
+      updateSyncBadge();
+    } catch {}
+  }, 30000);
 });
