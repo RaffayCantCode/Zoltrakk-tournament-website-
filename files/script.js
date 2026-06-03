@@ -29,6 +29,15 @@ function setLastSyncTime() {
 }
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
+function formatDate12h(val) {
+  if (!val) return "TBD";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val.replace("T", " ");
+  const m = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  let h = d.getHours(), ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${m} ${d.getDate()}, ${d.getFullYear()} ${h}:${String(d.getMinutes()).padStart(2,"0")} ${ampm}`;
+}
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 function nowIso() { return new Date().toISOString(); }
 
@@ -119,7 +128,7 @@ function injectSyncBadges() {
 function updateSyncBadge() {
   injectSyncBadges();
   const lastSync = getLastSyncTime();
-  const timeStr = lastSync ? ` · Last sync: ${lastSync.replace("T", " ").slice(0, 16)}` : "";
+  const timeStr = lastSync ? ` · Last sync: ${formatDate12h(lastSync)}` : "";
   document.querySelectorAll("[data-sync-badge]").forEach((el) => {
     el.innerHTML = cloudOnline
       ? `<span class="sync-badge online">Cloud connected${timeStr}</span>`
@@ -996,6 +1005,7 @@ function tournamentCardHtml(t) {
     <img class="tournament-banner" src="${tournamentBanner(t)}" alt="${esc(t.game)} tournament banner" loading="lazy">
     <div class="tournament-card-body">
       <h3>${esc(t.tournamentName)} <span class="muted-game">(${esc(t.game)})</span></h3>
+      <p style="color:var(--muted);font-size:.88rem;margin:4px 0">${formatDate12h(t.startsAt)}</p>
       <p>${esc(t.description || "Create teams, schedule matches, submit results, and compete for the top spot.")}</p>
       <div class="tournament-meta">
         <span class="tag status-${esc(t.status || "upcoming")}">${statusLabel(t.status)}</span>
@@ -1126,7 +1136,7 @@ function renderDetail(t) {
         </div>
         ${t.description ? `<p style="margin-top:14px">${esc(t.description)}</p>` : ""}
         <div class="stats-row" style="margin-top:16px">
-          <div class="stat-card" style="padding:14px 12px"><strong>${t.startsAt ? esc(t.startsAt.replace("T", " ")) : "TBD"}</strong><span>Start Date</span></div>
+          <div class="stat-card" style="padding:14px 12px"><strong>${formatDate12h(t.startsAt)}</strong><span>Start Date</span></div>
           <div class="stat-card" style="padding:14px 12px"><strong>${t.playerLimit || 32}</strong><span>Player Limit</span></div>
           <div class="stat-card" style="padding:14px 12px"><strong>${teamCount}</strong><span>Teams</span></div>
           <div class="stat-card" style="padding:14px 12px"><strong>${matchCount}</strong><span>Matches</span></div>
@@ -1276,7 +1286,6 @@ function renderDetail(t) {
     document.getElementById("editGame").value = t.game;
     document.getElementById("editVisibility").value = t.visibility || "public";
     document.getElementById("editJoinType").value = t.joinType || "quick";
-    document.getElementById("editApproval").value = String(Boolean(t.settings.joinApproval));
     document.getElementById("editPaidEntry").value = String(Boolean(t.paidEntry.enabled));
     document.getElementById("editPrizeType").value = t.prize?.type || "";
     document.getElementById("fundPrizeBtn")?.addEventListener("click", async () => {
@@ -1645,15 +1654,49 @@ function initSchedulePage() {
   const root = document.getElementById("scheduleRoot");
   if (!root) return;
 
-  const tournaments = getTournaments().filter((t) => (t.matches || []).length > 0 || (t.teams || []).length > 0);
   const preselect = new URLSearchParams(location.search).get("tournament") || "";
 
-  const render = () => {
-    const selectedId = document.getElementById("scheduleTournamentSelect")?.value || "all";
-    const list = selectedId === "all" ? tournaments : tournaments.filter((t) => t.id === selectedId);
+  const getValidTournaments = () => {
+    const all = getTournaments();
+    if (preselect) {
+      const selected = all.find((t) => t.id === preselect);
+      if (selected) return [selected];
+    }
+    return all.filter((t) => (t.matches || []).length > 0 || (t.teams || []).length > 0);
+  };
 
+  const buildToolbar = () => {
+    const all = getTournaments();
+    const options = all.map((t) =>
+      `<option value="${t.id}" ${t.id === preselect ? "selected" : ""}>${esc(t.tournamentName)} (${t.matches?.length || 0} matches)</option>`
+    ).join("");
+    return `
+      <div><label>Filter tournament</label>
+        <select id="scheduleTournamentSelect">
+          <option value="all">All tournaments</option>
+          ${options}
+        </select>
+      </div>
+      <div><a class="btn" href="tournaments.html">Browse Tournaments</a></div>`;
+  };
+
+  const render = () => {
+    const tournaments = getValidTournaments();
+    const selectedId = document.getElementById("scheduleTournamentSelect")?.value || "all";
+    const list = selectedId === "all" ? tournaments : getTournaments().filter((t) => t.id === selectedId);
+
+    if (!getTournaments().length) {
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0">No tournaments exist yet. <a href="create.html">Create one</a> to get started.</p></div>`;
+      return;
+    }
     if (!tournaments.length) {
-      root.innerHTML = `<div class="card" style="padding:20px"><p>No tournament schedules yet. <a href="create.html">Create a tournament</a>, add teams, then generate matches.</p></div>`;
+      const msg = preselect
+        ? `The selected tournament has no teams or matches yet. <a href="tournament.html?id=${preselect}">Open the tournament</a> and add teams first.`
+        : "No tournaments have matches or teams yet. Open your tournament and add teams to see them here.";
+      root.innerHTML = `
+        <div class="schedule-toolbar card" style="padding:18px;margin-bottom:16px">${buildToolbar()}</div>
+        <div class="card" style="padding:24px;text-align:center"><p style="color:var(--muted);margin:0">${msg}</p></div>`;
+      bindToolbar();
       return;
     }
 
@@ -1766,20 +1809,6 @@ function initSchedulePage() {
       };
     });
   };
-
-  function buildToolbar() {
-    const options = tournaments.map((t) =>
-      `<option value="${t.id}" ${t.id === preselect ? "selected" : ""}>${esc(t.tournamentName)} (${t.matches?.length || 0} matches)</option>`
-    ).join("");
-    return `
-      <div><label>Filter tournament</label>
-        <select id="scheduleTournamentSelect">
-          <option value="all">All tournaments</option>
-          ${options}
-        </select>
-      </div>
-      <div><a class="btn" href="tournaments.html">Browse Tournaments</a></div>`;
-  }
 
   function bindToolbar() {
     document.getElementById("scheduleTournamentSelect")?.addEventListener("change", render);
