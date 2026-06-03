@@ -44,7 +44,7 @@ function nowIso() { return new Date().toISOString(); }
 function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); }
 function setUsers(v, opts = {}) {
   localStorage.setItem(USERS_KEY, JSON.stringify(v));
-  if (!opts.skipCloud) pushCloudCollection("users", v);
+  if (!opts.skipCloud) pushCloudCollection("users", v).catch(() => {});
 }
 function getCurrentUser() { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null"); }
 function setCurrentUser(v) { localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(v)); }
@@ -52,7 +52,7 @@ function clearCurrentUser() { localStorage.removeItem(CURRENT_USER_KEY); }
 function getTournaments() { return JSON.parse(localStorage.getItem(TOURNAMENTS_KEY) || "[]"); }
 function setTournaments(v, opts = {}) {
   localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(v));
-  if (!opts.skipCloud) pushCloudCollection("tournaments", v);
+  if (!opts.skipCloud) pushCloudCollection("tournaments", v).catch(() => {});
 }
 
 function mergeByUpdatedAt(localArr, cloudArr) {
@@ -189,7 +189,8 @@ async function syncAllFromCloud() {
     await Promise.all([
       pushCloudCollection("users", getUsers()).catch(() => {}),
       pushCloudCollection("tournaments", getTournaments()).catch(() => {}),
-      pushCloudCollection("participants", JSON.parse(localStorage.getItem(REG_KEY) || "[]")).catch(() => {})
+      pushCloudCollection("participants", JSON.parse(localStorage.getItem(REG_KEY) || "[]")).catch(() => {}),
+      pushUserPlayersToCloud().catch(() => {})
     ]);
     if (!cloudReachable) cloudOnline = true;
     setLastSyncTime();
@@ -228,16 +229,6 @@ function touchTournament(t) {
   return t;
 }
 
-function getParticipants() {
-  return JSON.parse(localStorage.getItem(REG_KEY) || "[]");
-}
-
-function setParticipants(data) {
-  const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
-  localStorage.setItem(REG_KEY, JSON.stringify(withIds));
-  pushCloudCollection("participants", withIds).catch(() => {});
-}
-
 function userPlayersKey(userId) { return `zoltrakk_players_${userId}`; }
 
 function getUserPlayers() {
@@ -251,7 +242,17 @@ function setUserPlayers(data) {
   if (!user) return;
   const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
   localStorage.setItem(userPlayersKey(user.id), JSON.stringify(withIds));
-  pushCloudCollection("user_players", { userId: user.id, players: withIds }).catch(() => {});
+}
+
+async function pushUserPlayersToCloud() {
+  const user = getCurrentUser();
+  if (!user) return;
+  const local = getUserPlayers();
+  const cloud = await fetchCloudCollection("user_players").catch(() => []);
+  const existing = cloud.find((u) => u.userId === user.id) || { userId: user.id, players: [] };
+  const merged = mergeByUpdatedAt(local, existing.players);
+  const updated = cloud.filter((u) => u.userId !== user.id).concat([{ userId: user.id, players: merged }]);
+  await pushCloudCollection("user_players", updated);
 }
 
 function initTheme() {
@@ -661,8 +662,10 @@ function initSignupPage() {
     if (/[0-9]/.test(v)) score++;
     if (/[^A-Za-z0-9]/.test(v)) score++;
     const bar = document.getElementById("strengthBar");
-    bar.style.width = `${score * 20}%`;
-    bar.style.background = score <= 2 ? "#dc2626" : score <= 4 ? "#f59e0b" : "#16a34a";
+    if (bar) {
+      bar.style.width = `${score * 20}%`;
+      bar.style.background = score <= 2 ? "#dc2626" : score <= 4 ? "#f59e0b" : "#16a34a";
+    }
   });
 
   form.addEventListener("submit", async (e) => {
@@ -715,6 +718,7 @@ function initLoginPage() {
   if (!form) return;
   const eye = document.getElementById("eyeBtn");
   const pass = document.getElementById("lPass");
+  if (!eye || !pass) return;
 
   eye.onclick = () => {
     const isHidden = pass.type === "password";
@@ -777,7 +781,7 @@ function initLoginPage() {
       return;
     }
 
-    setCurrentUser({ id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email });
+    setCurrentUser({ id: user.id, name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email, email: user.email });
     status.className = "success";
     status.textContent = "Login successful. Redirecting...";
     setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
@@ -850,7 +854,7 @@ function initCreateTournamentPage() {
       try { ethToWeiHex(entryFeeEth); } catch (err) { return void (msg.textContent = err.message); }
       if (!isEthAddress(paymentWallet)) return void (msg.textContent = "Enter a valid payment wallet address for paid tournaments.");
     }
-    if ((prizeType === "ETH" || prizeAmount) && paymentWallet && !isEthAddress(paymentWallet)) {
+    if (prizeType === "ETH" && paymentWallet && !isEthAddress(paymentWallet)) {
       return void (msg.textContent = "Enter a valid wallet address for ETH prize funding.");
     }
     const t = touchTournament({
@@ -1045,6 +1049,20 @@ function saveTournament(t) {
   setTournaments(arr);
 }
 
+function renderDetailWithAccessCheck(t, root) {
+  const shareParam = new URLSearchParams(location.search).get("share") || "";
+  if (t.visibility === "private" && shareParam !== t.shareToken) {
+    root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+      <p style="font-size:1.1rem;margin:0 0 8px;font-weight:700">Private Tournament</p>
+      <p style="color:var(--muted);margin:0 0 4px">This tournament is private. You need a valid invite link to access it.</p>
+      <a class="btn" href="tournaments.html">Browse Tournaments</a>
+    </div>`;
+    return false;
+  }
+  renderDetail(t);
+  return true;
+}
+
 function initTournamentDetailPage() {
   const root = document.getElementById("tournamentDetailRoot");
   if (!root) return;
@@ -1079,11 +1097,11 @@ function initTournamentDetailPage() {
         });
         return;
       }
-      renderDetail(t);
+      renderDetailWithAccessCheck(t, root);
     })();
     return;
   }
-  renderDetail(t);
+  renderDetailWithAccessCheck(t, root);
 }
 
 function renderDetail(t) {
@@ -1267,14 +1285,6 @@ function renderDetail(t) {
       copyBtn.textContent = "Copy blocked — select URL above";
     }
   };
-  if (document.getElementById("markCompletedBtn")) {
-    document.getElementById("markCompletedBtn").onclick = () => {
-      t.status = "completed";
-      t.completedAt = nowIso();
-      saveTournament(t);
-      location.reload();
-    };
-  }
   if (isAdmin) {
     document.getElementById("statusSelect").value = t.status || "upcoming";
     document.getElementById("saveStatusBtn").onclick = () => {
@@ -1632,6 +1642,7 @@ function renderDetail(t) {
 
   if (isAdmin) {
     document.getElementById("autoMatchBtn").onclick = () => {
+      if (t.matches.length > 0 && !confirm("This will replace all existing matches. Continue?")) return;
       t.matches = [];
       for (let i = 0; i < t.teams.length - 1; i += 2) {
         t.matches.push(normalizeMatch({ a: t.teams[i].name, b: t.teams[i + 1].name, mode: "auto" }, t.matches.length));
@@ -1918,7 +1929,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       await Promise.all([
         pushCloudCollection("tournaments", tournaments).catch(() => {}),
         pushCloudCollection("users", users).catch(() => {}),
-        pushCloudCollection("participants", participants).catch(() => {})
+        pushCloudCollection("participants", participants).catch(() => {}),
+        pushUserPlayersToCloud().catch(() => {})
       ]);
       cloudOnline = true;
       setLastSyncTime();

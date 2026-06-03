@@ -49,11 +49,19 @@ async function writeCollection(store, key, data) {
   await store.setJSON(key, data);
 }
 
+function v2Response(statusCode, body) {
+  return new Response(JSON.stringify(body), {
+    status: statusCode,
+    headers: { "Content-Type": "application/json", ...corsHeaders() }
+  });
+}
+
 module.exports = {
   STORE_NAME,
   ALLOWED,
   corsHeaders,
   jsonResponse,
+  v2Response,
   sanitizeUser,
   prepareUserForCloud,
   verifyPassword,
