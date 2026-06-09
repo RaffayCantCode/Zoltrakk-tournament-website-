@@ -397,7 +397,7 @@ function normalizeHeaderNav() {
   // ── Auth buttons ──
   let authHtml = "";
   if (user) {
-    if (user.is_admin) authHtml += `<a href="admin.html" class="${isActive("admin.html")}">Admin</a>`;
+    authHtml += `<a href="admin.html" class="${isActive("admin.html")}">Admin</a>`;
     authHtml += `<a href="my-tournaments.html" class="${isActive("my-tournaments.html")}">My Hub</a>`;
     authHtml += `<a href="#" data-logout>Logout</a>`;
   } else {
@@ -452,7 +452,7 @@ function normalizeHeaderNav() {
 
   slideHtml += `<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border)"><strong style="display:block;padding:6px 14px;font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Account</strong>`;
   if (user) {
-    if (user.is_admin) slideHtml += `<a href="admin.html" class="${isActive("admin.html")}" style="font-weight:700;color:var(--primary)">Admin Panel</a>`;
+    slideHtml += `<a href="admin.html" class="${isActive("admin.html")}" style="font-weight:700;color:var(--primary)">Admin Panel</a>`;
     slideHtml += `<a href="profile.html" class="${isActive("profile.html")}">Profile</a>`;
     slideHtml += `<a href="#" data-logout-mobile>Logout</a>`;
   } else {
@@ -2125,19 +2125,33 @@ function initAdminPage() {
   const root = document.getElementById("adminRoot");
   if (!root) return;
   const user = getCurrentUser();
-  if (!user || !user.is_admin) {
+  if (!user) {
     root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
-      <p class="error" style="margin:0 0 12px;font-size:1.1rem">Access Denied</p>
-      <p style="color:var(--muted);margin:0 0 16px">Only administrators can access this panel.</p>
-      <a class="btn" href="index.html">Back to Home</a>
+      <p class="error" style="margin:0 0 12px;font-size:1.1rem">Login Required</p>
+      <p style="color:var(--muted);margin:0 0 16px">Please log in to access the admin panel.</p>
+      <a class="btn" href="login.html">Login</a>
     </div>`;
     return;
   }
 
-  showLoading(root, "Loading admin panel...");
+  showLoading(root, "Verifying admin access...");
 
   (async () => {
     try {
+      // Verify admin status directly from DB
+      const { data: profile } = await supabaseClient
+        .from("profiles").select("is_admin").eq("id", user.id).single();
+      if (!profile || profile.is_admin !== true) {
+        root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+          <p class="error" style="margin:0 0 12px;font-size:1.1rem">Access Denied</p>
+          <p style="color:var(--muted);margin:0 0 16px">Only administrators can access this panel.</p>
+          <a class="btn" href="index.html">Back to Home</a>
+        </div>`;
+        return;
+      }
+
+      showLoading(root, "Loading admin panel...");
+
       const [profilesRes, toursRes, msgsRes] = await Promise.all([
         supabaseClient.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
         supabaseClient.from("tournaments").select("*").order("created_at", { ascending: false }).limit(200),
@@ -2149,7 +2163,6 @@ function initAdminPage() {
       const allMsgs = msgsRes.data || [];
 
       const activeTab = new URLSearchParams(location.search).get("tab") || "dashboard";
-      const toggleTab = (tab) => { location.href = `admin.html?tab=${tab}`; };
 
       root.innerHTML = `
         <h2>Admin Panel</h2>
@@ -2168,14 +2181,13 @@ function initAdminPage() {
         const adminCount = allProfiles.filter(p => p.is_admin).length;
         const completedTours = allTours.filter(t => t.data?.status === "completed").length;
         const activeTours = allTours.filter(t => t.data?.status === "active" || t.data?.status === "upcoming").length;
-        const unreadMsgs = allMsgs.length;
 
         content.innerHTML = `
           <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
             <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${allUsersCount}</strong><span>Users</span><small style="display:block;color:var(--muted);font-size:.75rem">${adminCount} admins</small></div>
             <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${allTours.length}</strong><span>Tournaments</span><small style="display:block;color:var(--muted);font-size:.75rem">${activeTours} active</small></div>
             <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${completedTours}</strong><span>Completed</span></div>
-            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${unreadMsgs}</strong><span>Messages</span></div>
+            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${allMsgs.length}</strong><span>Messages</span></div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
             <div class="card" style="padding:20px"><h3>Quick Actions</h3>
@@ -2208,7 +2220,6 @@ function initAdminPage() {
           }).join("")}
         </table></div></div>`;
 
-        // Promote to admin
         content.querySelectorAll("[data-promote]").forEach(b => {
           b.onclick = async () => {
             if (!confirm("Make this user an admin?")) return;
@@ -2218,7 +2229,6 @@ function initAdminPage() {
             } catch { alert("Failed to update."); }
           };
         });
-        // Demote from admin
         content.querySelectorAll("[data-demote]").forEach(b => {
           b.onclick = async () => {
             if (!confirm("Remove admin privileges?")) return;
@@ -2228,7 +2238,6 @@ function initAdminPage() {
             } catch { alert("Failed to update."); }
           };
         });
-        // Delete user
         content.querySelectorAll("[data-del-user]").forEach(b => {
           b.onclick = async () => {
             if (!confirm("Delete this user permanently? This cannot be undone.")) return;
