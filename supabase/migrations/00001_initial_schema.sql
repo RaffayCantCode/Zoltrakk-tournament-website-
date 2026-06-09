@@ -149,3 +149,33 @@ CREATE TRIGGER on_tournaments_updated
 CREATE TRIGGER on_user_players_updated
   BEFORE UPDATE ON user_players
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- CONTACT MESSAGES 
+-- ============================================================
+CREATE TABLE contact_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  dob TEXT DEFAULT '',
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE contact_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can insert contact messages"
+  ON contact_messages FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can view contact messages"
+  ON contact_messages FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+-- ============================================================
+-- PROFILE COLUMNS
+-- ============================================================
+
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT '';
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme_pref TEXT DEFAULT 'light';
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;

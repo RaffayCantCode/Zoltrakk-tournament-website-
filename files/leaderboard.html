@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tournament Archive - Zoltrakk Arena</title>
+  <title>Leaderboard - Zoltrakk Arena</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header>
@@ -13,15 +14,22 @@
 
 <section>
   <div class="container card" style="padding:20px">
-    <h2>Tournament Archive</h2>
-    <p>Completed and cancelled tournaments move here automatically, with participants, winners, results, and standings still available.</p>
-    <a class="btn alt" href="tournaments.html">Back to Active Tournaments</a>
+    <h2>Tournament Leaderboard</h2>
+    <p>Teams ranked by match wins across all tournaments. Only completed matches count toward scores.</p>
+    <div class="filter-bar card" style="padding:14px;margin-bottom:14px">
+      <div><label>Filter by Game</label>
+        <select id="lbGameFilter"><option value="">All Games</option><option>League of Legends</option><option>Valorant</option><option>CS2</option><option>Overwatch</option></select>
+      </div>
+      <div><label>Search Team</label>
+        <input id="lbSearch" placeholder="Search team name...">
+      </div>
+    </div>
   </div>
 </section>
 
 <section>
   <div class="container">
-    <div id="archiveRoot"></div>
+    <div id="leaderboardRoot"></div>
   </div>
 </section>
 
@@ -46,7 +54,6 @@
     <span style="display:block;margin-top:8px">&copy; 2026 Zoltrakk Tournament — Built for players, by players.</span>
   </div>
 </footer>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 </body>
 </html>

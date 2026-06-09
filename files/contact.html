@@ -9,23 +9,6 @@
 <body>
 <header>
   <div class="logo-wrap"><a href="index.html" class="logo-text">Zoltrakk Arena</a></div>
-  <nav>
-    <div class="nav-main">
-      <a href="index.html">Home</a>
-      <a href="tournaments.html">Browse</a>
-      <a href="schedule.html">Schedule</a>
-      <a href="players.html">Players</a>
-      <a href="create.html">Create</a>
-      <a href="team.html">Teams</a>
-      <a href="my-tournaments.html">My Hub</a>
-      <a href="contact.html" class="active">Support</a>
-    </div>
-    <div class="nav-auth">
-      <a href="signup.html">Sign Up</a>
-      <a href="login.html">Login</a>
-    </div>
-  </nav>
-  <button class="theme-toggle" data-theme-toggle>Theme</button>
 </header>
 
 <section>
@@ -35,11 +18,11 @@
       <p>Need help with tournament links, login, or team joins? Send us a message and we will guide you.</p>
       <form id="contactForm">
         <div class="form-grid">
-          <div><label>Full Name *</label><input required></div>
-          <div><label>Email *</label><input type="email" required></div>
+          <div><label>Full Name *</label><input name="name" required></div>
+          <div><label>Email *</label><input type="email" name="email" required></div>
         </div>
-        <label>Date of Birth *</label><input type="date" required>
-        <label>Message *</label><textarea required placeholder="Tell us how we can help..."></textarea>
+        <label>Date of Birth *</label><input type="date" name="dob">
+        <label>Message *</label><textarea name="message" required placeholder="Tell us how we can help..."></textarea>
         <button class="btn" type="submit">Send Message</button>
         <button class="btn alt" type="reset">Clear Form</button>
       </form>
@@ -69,13 +52,16 @@
   <div class="footer-links">
     <a href="index.html">Home</a>
     <a href="tournaments.html">Browse</a>
+    <a href="leaderboard.html">Leaderboard</a>
     <a href="create.html">Create</a>
     <a href="schedule.html">Schedule</a>
     <a href="players.html">Players</a>
     <a href="team.html">Teams</a>
     <a href="my-tournaments.html">My Hub</a>
+    <a href="profile.html">Profile</a>
     <a href="contact.html">Support</a>
     <a href="signup.html">Sign Up</a>
+    <a href="admin.html">Admin</a>
     <a href="login.html">Login</a>
   </div>
   <div>

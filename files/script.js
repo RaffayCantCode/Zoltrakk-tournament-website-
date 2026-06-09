@@ -91,16 +91,28 @@ async function deleteTournamentFromSupabase(id) {
 // ── Auth Layer ────────────────────────────────────────────────
 async function loadCurrentUser() {
   try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) { _currentUserCache = null; return null; }
-    const meta = session.user.user_metadata || {};
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) { _currentUserCache = null; return null; }
+    const meta = user.user_metadata || {};
     _currentUserCache = {
-      id: session.user.id,
-      email: session.user.email,
-      name: `${meta.firstName || ""} ${meta.lastName || ""}`.trim() || session.user.email?.split("@")[0] || "User",
+      id: user.id,
+      email: user.email,
+      name: `${meta.firstName || ""} ${meta.lastName || ""}`.trim() || user.email?.split("@")[0] || "User",
       firstName: meta.firstName || "",
-      lastName: meta.lastName || ""
+      lastName: meta.lastName || "",
+      is_admin: false
     };
+    // Load admin flag and theme preference from profile
+    try {
+      const { data: profile } = await supabaseClient.from("profiles").select("theme_pref, is_admin").eq("id", user.id).single();
+      if (profile) {
+        if (profile.theme_pref) {
+          document.body.setAttribute("data-theme", profile.theme_pref);
+          localStorage.setItem(THEME_KEY, profile.theme_pref);
+        }
+        _currentUserCache.is_admin = profile.is_admin === true;
+      }
+    } catch {}
     return _currentUserCache;
   } catch {
     _currentUserCache = null;
@@ -195,6 +207,43 @@ function showLoading(el, msg) {
     <div class="spinner"></div>
     <p style="color:var(--muted);margin-top:8px">${esc(msg || "Loading...")}</p>
   </div>`;
+}
+
+// ── Supabase Realtime ────────────────────────────────────────
+let _tournamentChannel = null;
+
+function subscribeToTournaments(onUpdate) {
+  if (_tournamentChannel) return;
+  _tournamentChannel = supabaseClient.channel("tournaments-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, (payload) => {
+      if (payload.eventType === "INSERT") {
+        const newData = payload.new.data;
+        const arr = getTournaments();
+        if (!arr.find(x => x.id === newData.id)) {
+          arr.unshift(newData);
+          _tournamentsCache = arr;
+        }
+      } else if (payload.eventType === "UPDATE") {
+        const newData = payload.new.data;
+        const arr = getTournaments();
+        const idx = arr.findIndex(x => x.id === newData.id);
+        if (idx >= 0) arr[idx] = newData;
+        else arr.unshift(newData);
+        _tournamentsCache = arr;
+      } else if (payload.eventType === "DELETE") {
+        const deletedId = payload.old?.id;
+        if (deletedId) _tournamentsCache = getTournaments().filter(x => x.id !== deletedId);
+      }
+      if (onUpdate) onUpdate();
+    })
+    .subscribe();
+}
+
+function unsubscribeFromTournaments() {
+  if (_tournamentChannel) {
+    supabaseClient.removeChannel(_tournamentChannel);
+    _tournamentChannel = null;
+  }
 }
 
 function isTournamentAdmin(t) {
@@ -308,46 +357,203 @@ function initChatbot() {
 }
 
 function normalizeHeaderNav() {
-  const nav = document.querySelector("header nav");
-  if (!nav) return;
+  const header = document.querySelector("header");
+  if (!header) return;
 
   const user = getCurrentUser();
   const rawPage = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   const page = rawPage === "tournament.html" ? "tournaments.html" : rawPage;
+  const isActive = (href) => page === href.toLowerCase() ? "active" : "";
 
-  const mainLinks = [
-    ["index.html", "Home"],
-    ["schedule.html", "Schedule"],
-    ["players.html", "Players"],
-    ["tournaments.html", "Browse"],
-    ["archive.html", "Archive"],
-    ["create.html", "Create"],
-    ["team.html", "Teams"],
-    ["contact.html", "Support"]
+  // ── Desktop dropdown nav sections ──
+  const sections = [
+    { id: "play", label: "Play", links: [
+      ["tournaments.html", "Browse Tournaments"],
+      ["schedule.html", "Schedule"],
+      ["leaderboard.html", "Leaderboard"],
+    ]},
+    { id: "community", label: "Community", links: [
+      ["players.html", "Players"],
+      ["team.html", "Teams"],
+      ["contact.html", "Support"],
+    ]},
+    { id: "arena", label: "My Arena", links: [
+      ["my-tournaments.html", "My Hub"],
+      ["create.html", "Create Tournament"],
+      ["profile.html", "Profile"],
+      ["archive.html", "Archive"],
+    ]},
   ];
 
-  const mainHtml = mainLinks
-    .map(([href, label]) => `<a href="${href}" class="${page === href ? "active" : ""}">${label}</a>`)
-    .join("");
+  // ── Build desktop nav ──
+  const desktopHtml = `<div class="desktop-nav">${sections.map(s => `
+    <div class="nav-dropdown" data-dropdown="${s.id}">
+      <button class="nav-btn" data-dropdown-btn="${s.id}">${s.label} <span class="dd-arrow">▾</span></button>
+      <div class="dropdown-menu">${s.links.map(([href, label]) => `
+        <a href="${href}" class="${isActive(href)}">${label}</a>`).join("")}
+      </div>
+    </div>`).join("")}</div>`;
 
+  // ── Auth buttons ──
   let authHtml = "";
   if (user) {
-    authHtml += `<a href="my-tournaments.html" class="${page === "my-tournaments.html" ? "active" : ""}">My Hub</a>`;
+    if (user.is_admin) authHtml += `<a href="admin.html" class="${isActive("admin.html")}">Admin</a>`;
+    authHtml += `<a href="my-tournaments.html" class="${isActive("my-tournaments.html")}">My Hub</a>`;
     authHtml += `<a href="#" data-logout>Logout</a>`;
   } else {
-    authHtml += `<a href="signup.html" class="${page === "signup.html" ? "active" : ""}">Sign Up</a>`;
-    authHtml += `<a href="login.html" class="${page === "login.html" ? "active" : ""}">Login</a>`;
+    authHtml += `<a href="signup.html" class="${isActive("signup.html")}">Sign Up</a>`;
+    authHtml += `<a href="login.html" class="${isActive("login.html")}">Login</a>`;
   }
 
-  nav.innerHTML = `<div class="nav-main">${mainHtml}</div><div class="nav-auth">${authHtml}</div>`;
-  const logout = nav.querySelector("[data-logout]");
-  if (logout) {
-    logout.onclick = async (e) => {
-      e.preventDefault();
-      await signOutUser();
-      location.href = "login.html";
-    };
+  // ── Replace header ──
+  header.innerHTML = `
+    <div class="logo-wrap"><a href="index.html" class="logo-text">Zoltrakk Arena</a></div>
+    ${desktopHtml}
+    <div class="nav-auth">${authHtml}</div>
+    <button class="theme-toggle" data-theme-toggle>Theme</button>
+    <button class="hamburger" id="mobileMenuBtn" aria-label="Menu">☰</button>
+  `;
+
+  // ── Desktop dropdown toggle ──
+  document.querySelectorAll("[data-dropdown-btn]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const dd = btn.closest(".nav-dropdown");
+      const wasOpen = dd.classList.contains("open");
+      document.querySelectorAll(".nav-dropdown.open").forEach(d => d.classList.remove("open"));
+      if (!wasOpen) dd.classList.add("open");
+    });
+  });
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".nav-dropdown.open").forEach(d => d.classList.remove("open"));
+  });
+
+  // ── Mobile slide menu ──
+  const menuBtn = document.getElementById("mobileMenuBtn");
+  let slideMenu = document.querySelector(".mobile-slide-menu");
+  let slideOverlay = document.querySelector(".mobile-slide-overlay");
+  if (slideMenu) slideMenu.remove();
+  if (slideOverlay) slideOverlay.remove();
+
+  slideMenu = document.createElement("div");
+  slideMenu.className = "mobile-slide-menu";
+  let slideHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <strong style="font-size:1.05rem">Menu</strong>
+    <button class="mobile-close-btn" id="mobileCloseBtn" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:4px 8px">✕</button>
+  </div>`;
+
+  sections.forEach(s => {
+    slideHtml += `<div style="margin-bottom:4px"><strong style="display:block;padding:6px 14px;font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">${s.label}</strong>`;
+    s.links.forEach(([href, label]) => {
+      slideHtml += `<a href="${href}" class="${isActive(href)}">${label}</a>`;
+    });
+    slideHtml += `</div>`;
+  });
+
+  slideHtml += `<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border)"><strong style="display:block;padding:6px 14px;font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Account</strong>`;
+  if (user) {
+    if (user.is_admin) slideHtml += `<a href="admin.html" class="${isActive("admin.html")}" style="font-weight:700;color:var(--primary)">Admin Panel</a>`;
+    slideHtml += `<a href="profile.html" class="${isActive("profile.html")}">Profile</a>`;
+    slideHtml += `<a href="#" data-logout-mobile>Logout</a>`;
+  } else {
+    slideHtml += `<a href="login.html" class="${isActive("login.html")}">Login</a>`;
+    slideHtml += `<a href="signup.html" class="${isActive("signup.html")}">Sign Up</a>`;
   }
+  slideHtml += `</div>`;
+  slideMenu.innerHTML = slideHtml;
+  document.body.appendChild(slideMenu);
+
+  slideOverlay = document.createElement("div");
+  slideOverlay.className = "mobile-slide-overlay";
+  document.body.appendChild(slideOverlay);
+
+  const openSlide = () => { slideMenu.classList.add("open"); slideOverlay.classList.add("open"); document.body.style.overflow = "hidden"; };
+  const closeSlide = () => { slideMenu.classList.remove("open"); slideOverlay.classList.remove("open"); document.body.style.overflow = ""; };
+  menuBtn?.addEventListener("click", openSlide);
+  document.getElementById("mobileCloseBtn")?.addEventListener("click", closeSlide);
+  slideOverlay.addEventListener("click", closeSlide);
+
+  const mobLogout = slideMenu.querySelector("[data-logout-mobile]");
+  if (mobLogout) mobLogout.onclick = async (e) => { e.preventDefault(); await signOutUser(); location.href = "login.html"; };
+
+  // ── Desktop logout ──
+  const logout = header.querySelector("[data-logout]");
+  if (logout) logout.onclick = async (e) => { e.preventDefault(); await signOutUser(); location.href = "login.html"; };
+
+  // ── Re-init theme toggle ──
+  const themeBtn = header.querySelector("[data-theme-toggle]");
+  if (themeBtn) themeBtn.onclick = () => {
+    const cur = document.body.getAttribute("data-theme") || "light";
+    const next = cur === "dark" ? "light" : "dark";
+    document.body.setAttribute("data-theme", next);
+    localStorage.setItem(THEME_KEY, next);
+  };
+
+  // ── Mobile bottom nav + slide-up panels ──
+  let bottomNav = document.querySelector(".mobile-bottom-nav");
+  let overlay = document.querySelector(".mobile-overlay");
+  let panel = document.querySelector(".mobile-panel");
+  if (bottomNav) bottomNav.remove();
+  if (overlay) overlay.remove();
+  if (panel) panel.remove();
+
+  // Bottom nav
+  bottomNav = document.createElement("nav");
+  bottomNav.className = "mobile-bottom-nav";
+
+  const bottomItems = [
+    { id: "home", icon: "⌂", label: "Home", href: "index.html" },
+    { id: "play", icon: "▶", label: "Play" },
+    { id: "community", icon: "♦", label: "People" },
+    { id: "arena", icon: "☆", label: "Me" },
+  ];
+
+  bottomNav.innerHTML = bottomItems.map(item => {
+    if (item.href) {
+      return `<a href="${item.href}" class="bottom-nav-item ${page === item.href.toLowerCase() ? "active" : ""}"><span class="bnv-icon">${item.icon}</span><span class="bnv-label">${item.label}</span></a>`;
+    }
+    return `<button class="bottom-nav-item" data-mpanel="${item.id}"><span class="bnv-icon">${item.icon}</span><span class="bnv-label">${item.label}</span></button>`;
+  }).join("");
+  document.body.appendChild(bottomNav);
+
+  // Overlay
+  overlay = document.createElement("div");
+  overlay.className = "mobile-overlay";
+  document.body.appendChild(overlay);
+
+  // Panel
+  panel = document.createElement("div");
+  panel.className = "mobile-panel";
+  panel.innerHTML = `<div class="mobile-panel-header"><span class="mobile-panel-title" id="mobilePanelTitle"></span><button class="mobile-panel-close" id="mobilePanelClose">✕</button></div><div class="mobile-panel-body" id="mobilePanelBody"></div>`;
+  document.body.appendChild(panel);
+
+  const panelTitle = document.getElementById("mobilePanelTitle");
+  const panelBody = document.getElementById("mobilePanelBody");
+  const panelClose = document.getElementById("mobilePanelClose");
+
+  const openPanel = (sectionId) => {
+    const sec = sections.find(s => s.id === sectionId);
+    if (!sec) return;
+    panelTitle.textContent = sec.label;
+    panelBody.innerHTML = sec.links.map(([href, label]) =>
+      `<a href="${href}" class="${isActive(href)}">${label}</a>`
+    ).join("");
+    panel.classList.add("open");
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+  };
+
+  const closePanel = () => {
+    panel.classList.remove("open");
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+  };
+
+  document.querySelectorAll("[data-mpanel]").forEach(btn => {
+    btn.addEventListener("click", () => openPanel(btn.dataset.mpanel));
+  });
+  panelClose?.addEventListener("click", closePanel);
+  overlay.addEventListener("click", closePanel);
 }
 
 function initHomeStats() {
@@ -873,8 +1079,6 @@ function initTournamentsPage() {
     if (note) note.textContent = `Showing only ${requestedGame} tournaments.`;
   }
 
-  let refreshTimer = null;
-
   const render = () => {
     const q = (search.value || "").toLowerCase();
     const game = gameFilter.value;
@@ -899,37 +1103,8 @@ function initTournamentsPage() {
   [search, gameFilter, sort].forEach((el) => el.addEventListener("input", render));
   render();
 
-  // Refresh tournaments from Supabase every 15 seconds
-  const startRealtimeRefresh = () => {
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(async () => {
-      try {
-        const { data } = await supabaseClient
-          .from("tournaments")
-          .select("data")
-          .order("created_at", { ascending: false });
-        if (data) _tournamentsCache = data.map(r => r.data);
-        render();
-      } catch {}
-    }, 15000);
-  };
-  const pauseBtn = document.createElement("button");
-  pauseBtn.className = "btn alt";
-  pauseBtn.textContent = "Live: ON";
-  pauseBtn.style.cssText = "margin-left:10px;font-size:.82rem;padding:5px 10px";
-  pauseBtn.onclick = () => {
-    if (refreshTimer) {
-      clearInterval(refreshTimer);
-      refreshTimer = null;
-      pauseBtn.textContent = "Live: OFF";
-    } else {
-      startRealtimeRefresh();
-      pauseBtn.textContent = "Live: ON";
-    }
-  };
-  const note = document.getElementById("activeGameFilterNote");
-  if (note) note.after(pauseBtn);
-  startRealtimeRefresh();
+  // Realtime via Supabase subscriptions
+  subscribeToTournaments(render);
 }
 
 function tournamentCardHtml(t) {
@@ -1070,6 +1245,7 @@ function initTournamentDetailPage() {
   if (!root) return;
   const id = new URLSearchParams(location.search).get("id");
   if (!id) { root.innerHTML = `<div class="card" style="padding:20px"><p>No tournament ID in URL.</p><a class="btn" href="tournaments.html">Browse Tournaments</a></div>`; return; }
+  trackTournamentView(id);
   function fetchTournamentFromStore() {
     const all = getTournaments();
     return all.find((x) => x.id === id);
@@ -1873,17 +2049,21 @@ function initMyTournamentsPage() {
     };
   });
 
-  // Add import section
-  const importSection = document.createElement("div");
-  importSection.className = "card";
-  importSection.style.cssText = "padding:20px;margin-top:18px";
-  importSection.innerHTML = `
-    <h3>Import Tournament Backup</h3>
-    <p class="hint-text">Import a previously exported tournament file (.json). A new tournament will be created with the imported data.</p>
-    <input type="file" id="importTournamentFile" accept=".json" style="margin-bottom:10px">
-    <button class="btn" id="importTournamentBtn">Import Tournament</button>
-    <p id="importMsg" class="error" style="margin-top:8px"></p>`;
-  root.after(importSection);
+  // Add import section (only once)
+  let importSection = document.querySelector("#myTournamentsImportSection");
+  if (!importSection) {
+    importSection = document.createElement("div");
+    importSection.id = "myTournamentsImportSection";
+    importSection.className = "card";
+    importSection.style.cssText = "padding:20px;margin-top:18px";
+    importSection.innerHTML = `
+      <h3>Import Tournament Backup</h3>
+      <p class="hint-text">Import a previously exported tournament file (.json). A new tournament will be created with the imported data.</p>
+      <input type="file" id="importTournamentFile" accept=".json" style="margin-bottom:10px">
+      <button class="btn" id="importTournamentBtn">Import Tournament</button>
+      <p id="importMsg" class="error" style="margin-top:8px"></p>`;
+    root.after(importSection);
+  }
 
   document.getElementById("importTournamentBtn")?.addEventListener("click", async () => {
     const fileInput = document.getElementById("importTournamentFile");
@@ -1940,14 +2120,375 @@ function initArchivePage() {
   }).join("");
 }
 
+// ── Admin Panel ─────────────────────────────────────────────
+function initAdminPage() {
+  const root = document.getElementById("adminRoot");
+  if (!root) return;
+  const user = getCurrentUser();
+  if (!user || !user.is_admin) {
+    root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+      <p class="error" style="margin:0 0 12px;font-size:1.1rem">Access Denied</p>
+      <p style="color:var(--muted);margin:0 0 16px">Only administrators can access this panel.</p>
+      <a class="btn" href="index.html">Back to Home</a>
+    </div>`;
+    return;
+  }
+
+  showLoading(root, "Loading admin panel...");
+
+  (async () => {
+    try {
+      const [profilesRes, toursRes, msgsRes] = await Promise.all([
+        supabaseClient.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
+        supabaseClient.from("tournaments").select("*").order("created_at", { ascending: false }).limit(200),
+        supabaseClient.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100)
+      ]);
+
+      const allProfiles = profilesRes.data || [];
+      const allTours = toursRes.data || [];
+      const allMsgs = msgsRes.data || [];
+
+      const activeTab = new URLSearchParams(location.search).get("tab") || "dashboard";
+      const toggleTab = (tab) => { location.href = `admin.html?tab=${tab}`; };
+
+      root.innerHTML = `
+        <h2>Admin Panel</h2>
+        <div class="admin-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn ${activeTab === "dashboard" ? "" : "alt"}" onclick="location.href='admin.html?tab=dashboard'">Dashboard</button>
+          <button class="btn ${activeTab === "users" ? "" : "alt"}" onclick="location.href='admin.html?tab=users'">Users (${allProfiles.length})</button>
+          <button class="btn ${activeTab === "tournaments" ? "" : "alt"}" onclick="location.href='admin.html?tab=tournaments'">Tournaments (${allTours.length})</button>
+          <button class="btn ${activeTab === "messages" ? "" : "alt"}" onclick="location.href='admin.html?tab=messages'">Messages (${allMsgs.length})</button>
+        </div>
+        <div id="adminTabContent"></div>`;
+
+      const content = document.getElementById("adminTabContent");
+
+      if (activeTab === "dashboard") {
+        const allUsersCount = allProfiles.length;
+        const adminCount = allProfiles.filter(p => p.is_admin).length;
+        const completedTours = allTours.filter(t => t.data?.status === "completed").length;
+        const activeTours = allTours.filter(t => t.data?.status === "active" || t.data?.status === "upcoming").length;
+        const unreadMsgs = allMsgs.length;
+
+        content.innerHTML = `
+          <div class="stats-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${allUsersCount}</strong><span>Users</span><small style="display:block;color:var(--muted);font-size:.75rem">${adminCount} admins</small></div>
+            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${allTours.length}</strong><span>Tournaments</span><small style="display:block;color:var(--muted);font-size:.75rem">${activeTours} active</small></div>
+            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${completedTours}</strong><span>Completed</span></div>
+            <div class="stat-card card" style="padding:18px;text-align:center"><strong style="font-size:1.8rem">${unreadMsgs}</strong><span>Messages</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+            <div class="card" style="padding:20px"><h3>Quick Actions</h3>
+              <a class="btn" href="admin.html?tab=users" style="display:block;text-align:center;margin-bottom:8px">Manage Users</a>
+              <a class="btn alt" href="admin.html?tab=tournaments" style="display:block;text-align:center;margin-bottom:8px">Manage Tournaments</a>
+              <a class="btn alt" href="admin.html?tab=messages" style="display:block;text-align:center">View Messages</a>
+            </div>
+            <div class="card" style="padding:20px"><h3>Admin Setup</h3>
+              <p class="hint-text">To make another user an admin, use the Users tab and click "Make Admin". To remove admin privileges, click "Remove Admin".</p>
+            </div>
+          </div>`;
+      }
+
+      else if (activeTab === "users") {
+        content.innerHTML = `<div class="card" style="overflow:hidden;padding:0"><div class="table-wrap" style="border:none"><table>
+          <tr><th>Name</th><th>Email</th><th>Age</th><th>Admin</th><th>Actions</th></tr>
+          ${allProfiles.map(p => {
+            const isMe = p.id === user.id;
+            return `<tr>
+              <td><strong>${esc(p.first_name || "")} ${esc(p.last_name || "")}</strong></td>
+              <td style="font-size:.85rem;color:var(--muted)">${esc(p.email || "")}</td>
+              <td>${p.age || "-"}</td>
+              <td>${p.is_admin ? '<span class="badge">Admin</span>' : '<span class="badge outline">User</span>'}</td>
+              <td>
+                ${!p.is_admin ? `<button class="btn alt" style="padding:4px 10px;font-size:.78rem" data-promote="${p.id}">Make Admin</button>` : ""}
+                ${p.is_admin && !isMe ? `<button class="btn alt" style="padding:4px 10px;font-size:.78rem" data-demote="${p.id}">Remove Admin</button>` : ""}
+                ${!isMe ? ` <button class="btn alt" style="padding:4px 10px;font-size:.78rem;color:#dc2626" data-del-user="${p.id}">Delete</button>` : ""}
+              </td>
+            </tr>`;
+          }).join("")}
+        </table></div></div>`;
+
+        // Promote to admin
+        content.querySelectorAll("[data-promote]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Make this user an admin?")) return;
+            try {
+              await supabaseClient.from("profiles").update({ is_admin: true }).eq("id", b.dataset.promote);
+              location.reload();
+            } catch { alert("Failed to update."); }
+          };
+        });
+        // Demote from admin
+        content.querySelectorAll("[data-demote]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Remove admin privileges?")) return;
+            try {
+              await supabaseClient.from("profiles").update({ is_admin: false }).eq("id", b.dataset.demote);
+              location.reload();
+            } catch { alert("Failed to update."); }
+          };
+        });
+        // Delete user
+        content.querySelectorAll("[data-del-user]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Delete this user permanently? This cannot be undone.")) return;
+            try {
+              await supabaseClient.from("profiles").delete().eq("id", b.dataset.delUser);
+              try { await supabaseClient.auth.admin.deleteUser(b.dataset.delUser); } catch {}
+              location.reload();
+            } catch { alert("Failed to delete."); }
+          };
+        });
+      }
+
+      else if (activeTab === "tournaments") {
+        content.innerHTML = `<div class="card" style="overflow:hidden;padding:0"><div class="table-wrap" style="border:none"><table>
+          <tr><th>Name</th><th>Game</th><th>Status</th><th>Teams</th><th>Owner</th><th>Actions</th></tr>
+          ${allTours.map(r => {
+            const d = r.data || {};
+            return `<tr>
+              <td><strong>${esc(d.tournamentName || "Untitled")}</strong></td>
+              <td>${esc(d.game || "-")}</td>
+              <td><span class="tag status-${esc(d.status || "upcoming")}">${esc(d.status || "upcoming")}</span></td>
+              <td>${(d.teams || []).length}</td>
+              <td style="font-size:.8rem;color:var(--muted)">${esc(r.owner_id?.substring(0, 8) || "N/A")}</td>
+              <td>
+                <a class="btn alt" style="padding:4px 10px;font-size:.78rem" href="tournament.html?id=${r.id}">View</a>
+                <button class="btn alt" style="padding:4px 10px;font-size:.78rem;color:#dc2626" data-del-tour="${r.id}">Delete</button>
+              </td>
+            </tr>`;
+          }).join("")}
+        </table></div></div>`;
+
+        content.querySelectorAll("[data-del-tour]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Permanently delete this tournament?")) return;
+            try {
+              await supabaseClient.from("tournaments").delete().eq("id", b.dataset.delTour);
+              location.reload();
+            } catch { alert("Failed to delete."); }
+          };
+        });
+      }
+
+      else if (activeTab === "messages") {
+        content.innerHTML = `<div class="card" style="overflow:hidden;padding:0"><div class="table-wrap" style="border:none"><table>
+          <tr><th>Name</th><th>Email</th><th>Message</th><th>Date</th><th>Actions</th></tr>
+          ${allMsgs.map(m => `
+            <tr>
+              <td><strong>${esc(m.name)}</strong></td>
+              <td style="font-size:.85rem">${esc(m.email)}</td>
+              <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.message?.substring(0, 100))}</td>
+              <td style="font-size:.8rem;color:var(--muted);white-space:nowrap">${m.created_at ? new Date(m.created_at).toLocaleDateString() : "-"}</td>
+              <td><button class="btn alt" style="padding:4px 10px;font-size:.78rem;color:#dc2626" data-del-msg="${m.id}">Delete</button></td>
+            </tr>`).join("")}
+        </table></div></div>`;
+
+        content.querySelectorAll("[data-del-msg]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Delete this message?")) return;
+            try {
+              await supabaseClient.from("contact_messages").delete().eq("id", b.dataset.delMsg);
+              location.reload();
+            } catch { alert("Failed to delete."); }
+          };
+        });
+      }
+    } catch (err) {
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+        <p class="error" style="margin:0 0 8px">Failed to load admin data.</p>
+        <p style="color:var(--muted);margin:0 0 16px">${esc(err.message)}</p>
+        <a class="btn" href="admin.html">Retry</a>
+      </div>`;
+    }
+  })();
+}
+
+// ── Leaderboard ─────────────────────────────────────────────
+function initLeaderboardPage() {
+  const root = document.getElementById("leaderboardRoot");
+  if (!root) return;
+
+  const render = () => {
+    const game = document.getElementById("lbGameFilter")?.value || "";
+    const query = (document.getElementById("lbSearch")?.value || "").toLowerCase();
+    const tournaments = getTournaments();
+    const teamScores = {};
+
+    tournaments.forEach(t => {
+      if (game && t.game !== game) return;
+      (t.matches || []).forEach(m => {
+        if (m.status !== "completed" || !m.winner) return;
+        const winner = m.winner.trim();
+        if (!winner) return;
+        if (!teamScores[winner]) {
+          teamScores[winner] = { name: winner, wins: 0, games: new Set(), tournaments: new Set() };
+        }
+        teamScores[winner].wins++;
+        teamScores[winner].games.add(t.game);
+        teamScores[winner].tournaments.add(t.tournamentName);
+      });
+    });
+
+    let sorted = Object.values(teamScores);
+    if (query) sorted = sorted.filter(s => s.name.toLowerCase().includes(query));
+    sorted.sort((a, b) => b.wins - a.wins || a.name.localeCompare(b.name));
+
+    if (!sorted.length) {
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0;color:var(--muted)">No completed matches yet. Complete matches appear here with rankings.</p></div>`;
+      return;
+    }
+
+    root.innerHTML = `
+      <div class="card" style="overflow:hidden">
+        <div style="padding:14px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),color-mix(in srgb,var(--primary) 6%,var(--surface)));border-bottom:1px solid var(--border)">
+          <h3 style="margin:0;font-size:.95rem;text-transform:uppercase;letter-spacing:1px">Team Rankings</h3>
+        </div>
+        <div class="table-wrap" style="border:none">
+          <table>
+            <tr><th>#</th><th>Team</th><th>Wins</th><th>Games</th><th>Tournaments</th></tr>
+            ${sorted.map((s, i) => {
+              const medal = i === 0 ? "&#129351;" : i === 1 ? "&#129352;" : i === 2 ? "&#129353;" : "";
+              return `<tr class="${i < 3 ? "top-three" : ""}">
+                <td><strong>${medal || (i + 1)}</strong></td>
+                <td><strong>${esc(s.name)}</strong></td>
+                <td><span class="badge">${s.wins}</span></td>
+                <td>${Array.from(s.games).map(g => esc(g)).join(", ")}</td>
+                <td>${s.tournaments.size}</td>
+              </tr>`;
+            }).join("")}
+          </table>
+        </div>
+      </div>`;
+  };
+
+  ["lbGameFilter", "lbSearch"].forEach(id => document.getElementById(id)?.addEventListener("input", render));
+  render();
+  subscribeToTournaments(render);
+}
+
+// ── Profile Page ─────────────────────────────────────────────
+function initProfilePage() {
+  const root = document.getElementById("profileRoot");
+  if (!root) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+      <p class="error" style="margin:0 0 12px">Login required to view your profile.</p>
+      <a class="btn" href="login.html">Go to Login</a>
+      <a class="btn alt" href="signup.html">Create Account</a>
+    </div>`;
+    return;
+  }
+
+  const myTournaments = getTournaments().filter(t => t.ownerUserId === user.id || t.ownerEmail === user.email);
+  const mySquad = getUserPlayers();
+  const recentlyViewed = JSON.parse(localStorage.getItem("zoltrakk_recently_viewed") || "[]");
+
+  root.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+      <div class="card" style="padding:24px">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="width:80px;height:80px;border-radius:50%;background:var(--accent);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#fff;font-weight:700">${(user.name || "U")[0].toUpperCase()}</div>
+          <h2 style="margin:0">${esc(user.name)}</h2>
+          <p style="color:var(--muted);margin:4px 0 0">${esc(user.email)}</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card" style="padding:12px"><strong>${myTournaments.length}</strong><span>Tournaments</span></div>
+          <div class="stat-card" style="padding:12px"><strong>${mySquad.length}</strong><span>Squad Players</span></div>
+          <div class="stat-card" style="padding:12px"><strong>${recentlyViewed.length}</strong><span>Recent Views</span></div>
+        </div>
+        <a class="btn" href="my-tournaments.html" style="margin-top:12px;display:block;text-align:center">Manage Tournaments</a>
+      </div>
+
+      <div class="card" style="padding:24px">
+        <h3>Personalized Theme</h3>
+        <p class="hint-text">Choose your preferred color scheme. Your choice is saved to your profile.</p>
+        <div style="display:flex;gap:10px;margin-top:10px">
+          <button class="btn" id="profileThemeLight" style="flex:1">Light Mode</button>
+          <button class="btn alt" id="profileThemeDark" style="flex:1">Dark Mode</button>
+        </div>
+        <p id="profileThemeMsg" class="success" style="margin-top:8px"></p>
+
+        <h3 style="margin-top:20px">Browser Storage Demo</h3>
+        <p class="hint-text">Your recently viewed tournaments are stored in localStorage.</p>
+        <div id="recentlyViewedList">
+          ${recentlyViewed.length ? recentlyViewed.map(id => {
+            const t = getTournaments().find(x => x.id === id);
+            return t ? `<p style="margin:4px 0"><a href="tournament.html?id=${t.id}">${esc(t.tournamentName)}</a></p>` : "";
+          }).join("") : "<p style='color:var(--muted)'>No tournaments viewed yet.</p>"}
+        </div>
+        <button class="btn alt" id="clearRecentBtn" style="margin-top:8px">Clear History</button>
+      </div>
+    </div>`;
+
+  document.getElementById("profileThemeLight")?.addEventListener("click", async () => {
+    document.body.setAttribute("data-theme", "light");
+    localStorage.setItem(THEME_KEY, "light");
+    try {
+      await supabaseClient.from("profiles").update({ theme_pref: "light" }).eq("id", user.id);
+      document.getElementById("profileThemeMsg").textContent = "Theme updated to Light";
+    } catch {}
+  });
+
+  document.getElementById("profileThemeDark")?.addEventListener("click", async () => {
+    document.body.setAttribute("data-theme", "dark");
+    localStorage.setItem(THEME_KEY, "dark");
+    try {
+      await supabaseClient.from("profiles").update({ theme_pref: "dark" }).eq("id", user.id);
+      document.getElementById("profileThemeMsg").textContent = "Theme updated to Dark";
+    } catch {}
+  });
+
+  document.getElementById("clearRecentBtn")?.addEventListener("click", () => {
+    localStorage.removeItem("zoltrakk_recently_viewed");
+    document.getElementById("recentlyViewedList").innerHTML = "<p style='color:var(--muted)'>Cleared.</p>";
+  });
+}
+
+// ── Track recently viewed (Browser Storage demo) ────────────
+function trackTournamentView(tournamentId) {
+  let recent = JSON.parse(localStorage.getItem("zoltrakk_recently_viewed") || "[]");
+  recent = [tournamentId, ...recent.filter(id => id !== tournamentId)].slice(0, 10);
+  localStorage.setItem("zoltrakk_recently_viewed", JSON.stringify(recent));
+}
+
+// ── Contact Page ─────────────────────────────────────────────
 function initContactPage() {
   const form = document.getElementById("contactForm");
   const status = document.getElementById("contactStatus");
   if (!form || !status) return;
-  form.addEventListener("submit", (e) => {
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    status.textContent = "Thanks. Your support message has been received.";
-    form.reset();
+    status.className = "error";
+    const name = form.querySelector('[name="name"]')?.value?.trim() || form.querySelector('[type="text"]')?.value?.trim() || "";
+    const email = form.querySelector('[type="email"]')?.value?.trim() || "";
+    const dob = form.querySelector('[type="date"]')?.value || "";
+    const msg = form.querySelector("textarea")?.value?.trim() || "";
+
+    if (!name || !email || !msg) {
+      status.textContent = "Please fill in all required fields.";
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      status.textContent = "Please enter a valid email address.";
+      return;
+    }
+
+    try {
+      const { error } = await supabaseClient.from("contact_messages").insert({
+        name, email, dob, message: msg
+      });
+      if (error) throw error;
+      status.className = "success";
+      status.textContent = "Message sent! We'll get back to you soon.";
+      form.reset();
+    } catch (err) {
+      status.textContent = "Failed to send message. Please try again.";
+      console.error("Contact save error:", err);
+    }
   });
 }
 
@@ -1985,4 +2526,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initArchivePage();
   initContactPage();
   initPlayersPage();
+  initLeaderboardPage();
+  initProfilePage();
+  initAdminPage();
 });
