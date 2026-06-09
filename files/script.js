@@ -104,13 +104,17 @@ async function loadCurrentUser() {
     };
     // Load admin flag and theme preference from profile
     try {
-      const { data: profile } = await supabaseClient.from("profiles").select("theme_pref, is_admin").eq("id", user.id).single();
+      const { data: profile } = await supabaseClient.from("profiles").select("theme_pref, is_admin, best_game, rank, looking_for, teammates").eq("id", user.id).single();
       if (profile) {
         if (profile.theme_pref) {
           document.body.setAttribute("data-theme", profile.theme_pref);
           localStorage.setItem(THEME_KEY, profile.theme_pref);
         }
         _currentUserCache.is_admin = profile.is_admin === true;
+        _currentUserCache.best_game = profile.best_game || "";
+        _currentUserCache.rank = profile.rank || "";
+        _currentUserCache.looking_for = profile.looking_for || "both";
+        _currentUserCache.teammates = profile.teammates || [];
       }
     } catch {}
     return _currentUserCache;
@@ -2391,69 +2395,250 @@ function initProfilePage() {
     return;
   }
 
-  const myTournaments = getTournaments().filter(t => t.ownerUserId === user.id || t.ownerEmail === user.email);
-  const mySquad = getUserPlayers();
-  const recentlyViewed = JSON.parse(localStorage.getItem("zoltrakk_recently_viewed") || "[]");
+  showLoading(root, "Loading profile...");
 
-  root.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
-      <div class="card" style="padding:24px">
-        <div style="text-align:center;margin-bottom:16px">
-          <div style="width:80px;height:80px;border-radius:50%;background:var(--accent);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#fff;font-weight:700">${(user.name || "U")[0].toUpperCase()}</div>
-          <h2 style="margin:0">${esc(user.name)}</h2>
-          <p style="color:var(--muted);margin:4px 0 0">${esc(user.email)}</p>
-        </div>
-        <div class="stats-row">
-          <div class="stat-card" style="padding:12px"><strong>${myTournaments.length}</strong><span>Tournaments</span></div>
-          <div class="stat-card" style="padding:12px"><strong>${mySquad.length}</strong><span>Squad Players</span></div>
-          <div class="stat-card" style="padding:12px"><strong>${recentlyViewed.length}</strong><span>Recent Views</span></div>
-        </div>
-        <a class="btn" href="my-tournaments.html" style="margin-top:12px;display:block;text-align:center">Manage Tournaments</a>
-      </div>
+  const GAMES = ["League of Legends", "Valorant", "CS2", "Overwatch 2"];
+  const RANKS = {
+    "League of Legends": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Master", "Grandmaster", "Challenger"],
+    "Valorant": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"],
+    "CS2": ["Silver", "Silver Elite", "Gold Nova", "Master Guardian", "AK-47", "AWP", "Supreme", "Global Elite"],
+    "Overwatch 2": ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Champion"]
+  };
+  const LOOKING_FOR_OPTIONS = [
+    { value: "both", label: "Both Casual & Competitive" },
+    { value: "casual", label: "Casual Tournaments" },
+    { value: "competitive", label: "Pro Competitive" }
+  ];
 
-      <div class="card" style="padding:24px">
-        <h3>Personalized Theme</h3>
-        <p class="hint-text">Choose your preferred color scheme. Your choice is saved to your profile.</p>
-        <div style="display:flex;gap:10px;margin-top:10px">
-          <button class="btn" id="profileThemeLight" style="flex:1">Light Mode</button>
-          <button class="btn alt" id="profileThemeDark" style="flex:1">Dark Mode</button>
-        </div>
-        <p id="profileThemeMsg" class="success" style="margin-top:8px"></p>
-
-        <h3 style="margin-top:20px">Browser Storage Demo</h3>
-        <p class="hint-text">Your recently viewed tournaments are stored in localStorage.</p>
-        <div id="recentlyViewedList">
-          ${recentlyViewed.length ? recentlyViewed.map(id => {
-            const t = getTournaments().find(x => x.id === id);
-            return t ? `<p style="margin:4px 0"><a href="tournament.html?id=${t.id}">${esc(t.tournamentName)}</a></p>` : "";
-          }).join("") : "<p style='color:var(--muted)'>No tournaments viewed yet.</p>"}
-        </div>
-        <button class="btn alt" id="clearRecentBtn" style="margin-top:8px">Clear History</button>
-      </div>
-    </div>`;
-
-  document.getElementById("profileThemeLight")?.addEventListener("click", async () => {
-    document.body.setAttribute("data-theme", "light");
-    localStorage.setItem(THEME_KEY, "light");
+  (async () => {
     try {
-      await supabaseClient.from("profiles").update({ theme_pref: "light" }).eq("id", user.id);
-      document.getElementById("profileThemeMsg").textContent = "Theme updated to Light";
-    } catch {}
-  });
+      const { data: profile } = await supabaseClient
+        .from("profiles").select("best_game, rank, looking_for, teammates, theme_pref").eq("id", user.id).single();
 
-  document.getElementById("profileThemeDark")?.addEventListener("click", async () => {
-    document.body.setAttribute("data-theme", "dark");
-    localStorage.setItem(THEME_KEY, "dark");
-    try {
-      await supabaseClient.from("profiles").update({ theme_pref: "dark" }).eq("id", user.id);
-      document.getElementById("profileThemeMsg").textContent = "Theme updated to Dark";
-    } catch {}
-  });
+      const bestGame = profile?.best_game || "";
+      const rank = profile?.rank || "";
+      const lookingFor = profile?.looking_for || "both";
+      const teammates = profile?.teammates || [];
+      const mySquad = getUserPlayers();
+      const myTournaments = getTournaments().filter(t => t.ownerUserId === user.id || t.ownerEmail === user.email);
+      const recentlyViewed = JSON.parse(localStorage.getItem("zoltrakk_recently_viewed") || "[]");
 
-  document.getElementById("clearRecentBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("zoltrakk_recently_viewed");
-    document.getElementById("recentlyViewedList").innerHTML = "<p style='color:var(--muted)'>Cleared.</p>";
-  });
+      root.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+
+          <!-- User Card -->
+          <div class="card" style="padding:24px">
+            <div style="text-align:center;margin-bottom:16px">
+              <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#fff;font-weight:700">${(user.name || "U")[0].toUpperCase()}</div>
+              <h2 style="margin:0">${esc(user.name)}</h2>
+              <p style="color:var(--muted);margin:4px 0 0">${esc(user.email)}</p>
+              ${bestGame ? `<span class="tag" style="margin-top:8px;display:inline-block">${esc(bestGame)}${rank ? " — " + esc(rank) : ""}</span>` : ""}
+              ${teammates.length ? `<p style="color:var(--muted);font-size:.85rem;margin-top:6px">${teammates.length} teammate${teammates.length > 1 ? "s" : ""} • ${lookingFor === "competitive" ? "Pro Competitive" : lookingFor === "casual" ? "Casual" : "All Tournaments"}</p>` : ""}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+              <div class="stat-card" style="padding:12px"><strong>${myTournaments.length}</strong><span>Tournaments</span></div>
+              <div class="stat-card" style="padding:12px"><strong>${mySquad.length}</strong><span>Squad</span></div>
+              <div class="stat-card" style="padding:12px"><strong>${recentlyViewed.length}</strong><span>Views</span></div>
+            </div>
+            <a class="btn" href="my-tournaments.html" style="display:block;text-align:center">Manage Tournaments</a>
+          </div>
+
+          <!-- Gaming Profile -->
+          <div class="card" style="padding:24px">
+            <h3 style="margin:0 0 14px">Gaming Profile</h3>
+
+            <label>Best Game</label>
+            <select id="profileBestGame"><option value="">Select your main game...</option>
+              ${GAMES.map(g => `<option value="${g}" ${bestGame === g ? "selected" : ""}>${g}</option>`).join("")}
+            </select>
+
+            <label style="margin-top:10px">Your Rank</label>
+            <select id="profileRank"><option value="">Select your rank...</option>
+              ${bestGame && RANKS[bestGame] ? RANKS[bestGame].map(r => `<option value="${r}" ${rank === r ? "selected" : ""}>${r}</option>`).join("") : ""}
+            </select>
+            ${!bestGame ? '<p class="hint-text">Select a game first to see ranks</p>' : ""}
+
+            <label style="margin-top:10px">Looking For</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${LOOKING_FOR_OPTIONS.map(o => `
+                <button class="btn ${lookingFor === o.value ? "" : "alt"} profile-looking-btn" data-looking="${o.value}" style="flex:1;min-width:120px;font-size:.82rem">${o.label}</button>
+              `).join("")}
+            </div>
+            <p id="profilePrefMsg" class="success" style="margin-top:8px"></p>
+          </div>
+
+          <!-- Teammates -->
+          <div class="card" style="padding:24px">
+            <h3 style="margin:0 0 4px">Teammates</h3>
+            <p class="hint-text" style="margin:0 0 12px">Add people you play with, or go solo.</p>
+
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <button class="btn ${!teammates.length ? "" : "alt"} profile-solo-btn" data-solo="true" style="flex:1">Solo</button>
+              <button class="btn ${teammates.length ? "" : "alt"} profile-solo-btn" data-solo="false" style="flex:1">With Team</button>
+            </div>
+
+            <div id="teammatesSection" style="display:${teammates.length ? "block" : "none"}">
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <input id="teammateNameInput" placeholder="Teammate's name..." style="flex:1">
+                <button class="btn" id="addTeammateBtn" style="white-space:nowrap">Add</button>
+              </div>
+              <div id="teammateList">
+                ${teammates.map((t, i) => `
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));border-radius:8px;margin-bottom:4px">
+                    <span style="font-weight:500">${esc(typeof t === "string" ? t : t.name || t)}</span>
+                    <button class="btn alt remove-teammate" data-idx="${i}" style="padding:4px 8px;font-size:.75rem;color:#dc2626">Remove</button>
+                  </div>
+                `).join("")}
+              </div>
+              ${mySquad.length ? `
+                <p class="hint-text" style="margin:10px 0 4px">Or add from your squad:</p>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  ${mySquad.filter(p => !teammates.some(t => (typeof t === "string" ? t : t.name || t) === p.name)).map(p => `
+                    <button class="btn alt add-squad-btn" data-name="${esc(p.name)}" style="padding:5px 10px;font-size:.78rem">+ ${esc(p.name)}</button>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+            <p id="teammateMsg" class="success" style="margin-top:8px"></p>
+          </div>
+
+          <!-- Theme & Browser Storage -->
+          <div class="card" style="padding:24px">
+            <h3 style="margin:0 0 10px">Theme</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn profile-theme-btn" data-theme-choice="light" style="flex:1">Light</button>
+              <button class="btn alt profile-theme-btn" data-theme-choice="dark" style="flex:1">Dark</button>
+            </div>
+            <p id="profileThemeMsg" class="success" style="margin-top:8px"></p>
+
+            <h3 style="margin-top:20px">Recently Viewed</h3>
+            <p class="hint-text" style="margin:0 0 8px">Stored in your browser (localStorage).</p>
+            <div id="recentlyViewedList" style="max-height:160px;overflow-y:auto">
+              ${recentlyViewed.length ? recentlyViewed.map(id => {
+                const t = getTournaments().find(x => x.id === id);
+                return t ? `<p style="margin:4px 0;font-size:.88rem"><a href="tournament.html?id=${t.id}">${esc(t.tournamentName)}</a></p>` : "";
+              }).join("") : "<p style='color:var(--muted);font-size:.88rem'>No tournaments viewed yet.</p>"}
+            </div>
+            ${recentlyViewed.length ? '<button class="btn alt" id="clearRecentBtn" style="margin-top:8px;font-size:.82rem">Clear History</button>' : ""}
+          </div>
+
+        </div>`;
+
+      // ── Game selection updates rank dropdown ──
+      document.getElementById("profileBestGame")?.addEventListener("change", async (e) => {
+        const game = e.target.value;
+        const rankSel = document.getElementById("profileRank");
+        rankSel.innerHTML = `<option value="">Select your rank...</option>` +
+          (RANKS[game] || []).map(r => `<option value="${r}" ${rank === r ? "selected" : ""}>${r}</option>`).join("");
+        try {
+          await supabaseClient.from("profiles").update({ best_game: game, rank: "" }).eq("id", user.id);
+          document.getElementById("profilePrefMsg").textContent = "Game updated!";
+        } catch { document.getElementById("profilePrefMsg").textContent = "Failed to save."; }
+      });
+
+      document.getElementById("profileRank")?.addEventListener("change", async (e) => {
+        try {
+          await supabaseClient.from("profiles").update({ rank: e.target.value }).eq("id", user.id);
+          document.getElementById("profilePrefMsg").textContent = "Rank updated!";
+        } catch { document.getElementById("profilePrefMsg").textContent = "Failed to save."; }
+      });
+
+      // ── Looking For buttons ──
+      document.querySelectorAll(".profile-looking-btn").forEach(btn => {
+        btn.onclick = async () => {
+          document.querySelectorAll(".profile-looking-btn").forEach(b => { b.classList.add("alt"); b.classList.remove("open"); });
+          btn.classList.remove("alt");
+          btn.classList.add("open");
+          try {
+            await supabaseClient.from("profiles").update({ looking_for: btn.dataset.looking }).eq("id", user.id);
+            document.getElementById("profilePrefMsg").textContent = "Preference saved!";
+          } catch { document.getElementById("profilePrefMsg").textContent = "Failed to save."; }
+        };
+      });
+
+      // ── Solo / Team toggle ──
+      document.querySelectorAll(".profile-solo-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const isSolo = btn.dataset.solo === "true";
+          document.querySelectorAll(".profile-solo-btn").forEach(b => { b.classList.add("alt"); b.classList.remove("open"); });
+          btn.classList.remove("alt");
+          btn.classList.add("open");
+          const sec = document.getElementById("teammatesSection");
+          if (isSolo) {
+            sec.style.display = "none";
+            try {
+              await supabaseClient.from("profiles").update({ teammates: [] }).eq("id", user.id);
+              document.getElementById("teammateMsg").textContent = "Set to Solo. Good luck out there!";
+            } catch { document.getElementById("teammateMsg").textContent = "Failed to save."; }
+          } else {
+            sec.style.display = "block";
+          }
+        };
+      });
+
+      // ── Add teammate ──
+      const addTeammate = async (name) => {
+        if (!name.trim()) return;
+        const updated = [...teammates, name.trim()];
+        try {
+          await supabaseClient.from("profiles").update({ teammates: updated }).eq("id", user.id);
+          document.getElementById("teammateMsg").textContent = `${name.trim()} added!`;
+          initProfilePage();
+        } catch { document.getElementById("teammateMsg").textContent = "Failed to add."; }
+      };
+
+      document.getElementById("addTeammateBtn")?.addEventListener("click", () => {
+        addTeammate(document.getElementById("teammateNameInput").value);
+      });
+
+      document.getElementById("teammateNameInput")?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") addTeammate(e.target.value);
+      });
+
+      document.querySelectorAll(".add-squad-btn").forEach(btn => {
+        btn.onclick = () => addTeammate(btn.dataset.name);
+      });
+
+      document.querySelectorAll(".remove-teammate").forEach(btn => {
+        btn.onclick = async () => {
+          const updated = teammates.filter((_, i) => i !== parseInt(btn.dataset.idx));
+          try {
+            await supabaseClient.from("profiles").update({ teammates: updated }).eq("id", user.id);
+            document.getElementById("teammateMsg").textContent = "Teammate removed.";
+            initProfilePage();
+          } catch { document.getElementById("teammateMsg").textContent = "Failed to remove."; }
+        };
+      });
+
+      // ── Theme buttons ──
+      document.querySelectorAll(".profile-theme-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const theme = btn.dataset.themeChoice;
+          document.body.setAttribute("data-theme", theme);
+          localStorage.setItem(THEME_KEY, theme);
+          document.querySelectorAll(".profile-theme-btn").forEach(b => { b.classList.add("alt"); b.classList.remove("open"); });
+          btn.classList.remove("alt");
+          btn.classList.add("open");
+          try {
+            await supabaseClient.from("profiles").update({ theme_pref: theme }).eq("id", user.id);
+            document.getElementById("profileThemeMsg").textContent = `Theme set to ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
+          } catch { document.getElementById("profileThemeMsg").textContent = "Failed to save."; }
+        };
+      });
+
+      document.getElementById("clearRecentBtn")?.addEventListener("click", () => {
+        localStorage.removeItem("zoltrakk_recently_viewed");
+        document.getElementById("recentlyViewedList").innerHTML = "<p style='color:var(--muted);font-size:.88rem'>Cleared.</p>";
+      });
+
+    } catch (err) {
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
+        <p class="error" style="margin:0 0 8px">Failed to load profile.</p>
+        <p style="color:var(--muted);margin:0 0 16px">${esc(err.message)}</p>
+        <a class="btn" href="profile.html">Retry</a>
+      </div>`;
+    }
+  })();
 }
 
 // ── Track recently viewed (Browser Storage demo) ────────────

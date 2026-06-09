@@ -13,6 +13,13 @@ CREATE TABLE profiles (
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   age INTEGER,
+  avatar_url TEXT DEFAULT '',
+  theme_pref TEXT DEFAULT 'light',
+  is_admin BOOLEAN DEFAULT FALSE,
+  best_game TEXT,
+  rank TEXT,
+  looking_for TEXT DEFAULT 'both',
+  teammates JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -171,11 +178,3 @@ CREATE POLICY "Anyone can insert contact messages"
 CREATE POLICY "Authenticated users can view contact messages"
   ON contact_messages FOR SELECT
   USING (auth.role() = 'authenticated');
-
--- ============================================================
--- PROFILE COLUMNS
--- ============================================================
-
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT '';
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS theme_pref TEXT DEFAULT 'light';
--- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
