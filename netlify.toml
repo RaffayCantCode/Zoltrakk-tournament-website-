@@ -1,8 +1,19 @@
 [build]
   publish = "files"
   functions = "netlify/functions"
-  command = "npm install --prefix netlify/functions"
+
+[build.processing]
+  skip_processing = false
+
+[build.processing.html]
+  pretty_urls = true
 
 [functions]
   node_bundler = "esbuild"
-  included_files = ["files/data.json"]
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

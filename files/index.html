@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zoltrakk Arena — Next-Gen Tournament Platform</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header>
@@ -123,7 +124,7 @@
 <section>
   <div class="container card" style="padding:28px">
     <h2>Live Arena Snapshot <span class="live-indicator">Live</span></h2>
-    <p>Tournament data syncs between your browser and the Netlify cloud database so friends worldwide can browse the same events in real time.</p>
+    <p>Tournament data is stored in a cloud database so friends worldwide can browse the same events in real time.</p>
     <div class="stats-row" id="homeStatsRow">
       <div class="stat-card"><strong>0</strong><span>Active Tournaments</span></div>
       <div class="stat-card"><strong>0</strong><span>Players Registered</span></div>
@@ -146,7 +147,7 @@
           <li><strong>Create &amp; share:</strong> Host sets rules, game, and optional first team; everyone else joins through your tournament link.</li>
           <li><strong>Team flow:</strong> Players can create a new squad or join an existing roster with captain/member roles.</li>
           <li><strong>Schedule control:</strong> Auto-generate pairings, add manual matches, set dates/times, and update results on the Schedule page.</li>
-          <li><strong>Cloud + local:</strong> Accounts and tournaments save in your browser and sync to Netlify storage for worldwide access.</li>
+          <li><strong>Supabase powered:</strong> All tournament data is stored in a cloud database for fast worldwide access.</li>
         </ul>
       </div>
       <div class="card" style="padding:24px">
@@ -158,7 +159,7 @@
         </div>
         <p style="margin-top:16px"><strong>Built for:</strong> casual scrims, class tournaments, weekend LAN parties, recurring friend leagues, and pro-level circuits.</p>
         <p><strong>Pages included:</strong> Home, Schedule, Players, Browse, Create, Teams, Support, Sign Up, Login, and My Hub for creators.</p>
-        <p><strong>Powered by:</strong> Vanilla JS, Netlify Blob storage, MetaMask Ethereum wallet, and your competitive spirit.</p>
+        <p><strong>Powered by:</strong> Vanilla JS, Supabase database, MetaMask Ethereum wallet, and your competitive spirit.</p>
         <a class="btn alt" href="create.html" style="margin-top:6px">Start a Tournament</a>
       </div>
     </div>
@@ -191,8 +192,8 @@
       </article>
       <article class="feature-item">
         <div class="feature-icon">🌐</div>
-        <h3>Worldwide Sync</h3>
-        <p>Cloud-synchronised via Netlify. Create on one device, manage on another. Your data follows you.</p>
+        <h3>Cloud Database</h3>
+        <p>Powered by Supabase. Create on one device, manage on another. Your data is always available.</p>
       </article>
       <article class="feature-item">
         <div class="feature-icon">💰</div>
@@ -220,7 +221,6 @@
     <span class="footer-brand">Zoltrakk Arena</span>
     <span style="display:block;margin-top:8px">&copy; 2026 Zoltrakk Tournament — Built for players, by players.</span>
   </div>
-  <span data-sync-badge style="display:inline-block;margin-top:10px"></span>
 </footer>
 <script src="script.js"></script>
 </body>

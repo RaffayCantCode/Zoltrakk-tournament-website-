@@ -1,107 +1,129 @@
-# Zoltrakk Tournament Website
+# Zoltrakk Arena — Tournament Platform
 
-A fun, multi-page tournament website for organizing competitive matches with friends.
+Next-generation tournament platform built with vanilla JS, Supabase database, and Netlify hosting.
 
-Create custom tournaments, build game-accurate team lineups, browse players, register participants, and enjoy a clean dark/light experience.
+## Architecture
 
-## Features
+- **Frontend:** Static HTML/CSS/JS (no frameworks)
+- **Database:** Supabase (PostgreSQL) — primary source of truth for all tournament data
+- **Auth:** Supabase Auth (email/password)
+- **Hosting:** Netlify (static files + serverless functions)
+- **Backup:** JSON export/import for tournament files
 
-- Multi-page website:
-  - `index.html`
-  - `schedule.html`
-  - `players.html`
-  - `contact.html`
-  - `signup.html`
-  - `login.html`
-  - `create.html`
-  - `tournaments.html`
-- Player cards loaded dynamically from JSON with Fetch API.
-- Search and filter players by name, game, and rank.
-- Registration system with:
-  - localStorage persistence
-  - max 10 participant limit
-  - remove participant
-  - live total count
-- Signup and login validation with JavaScript.
-- Password strength meter and password show/hide emoji toggle.
-- Dark mode / light mode preference stored in localStorage.
-- Shareable tournament links for friend access.
-- Admin controls for tournament creator:
-  - delete teams
-  - move team order
-  - automatic match generation
-  - manual match assignment
-- Friend join flow:
-  - create a new team
-  - or join an existing team
+## Supabase Setup
 
-## Game-Specific Tournament Creation
+### Prerequisites
+1. Create a Supabase project at https://supabase.com
+2. Your project reference: `pdhukukrfeuvikfitred`
+3. Supabase URL: `https://pdhukukrfeuvikfitred.supabase.co`
 
-Tournament creation is not generic anymore. Each game has its own meaningful team system:
+### Run Migrations
+The migration file is at `supabase/migrations/00001_initial_schema.sql`.
 
-- **League of Legends**
-  - Top, Jungle, Mid, ADC, Support
-- **Valorant**
-  - Duelist, Controller, Initiator, Sentinel, Flex
-- **Overwatch**
-  - Tank, Damage, Damage, Support, Support
-- **CS2**
-  - Standard 5-player lineup slots
+**Option 1: Supabase Dashboard (SQL Editor)**
+1. Go to your Supabase project dashboard
+2. Open the SQL Editor
+3. Paste the contents of `supabase/migrations/00001_initial_schema.sql`
+4. Run the query
 
-This makes game differences actually matter while creating tournaments.
-
-## More Games Coming Soon
-
-The platform is built to expand.
-Upcoming support can include:
-
-- Rocket League
-- Dota 2
-- Apex Legends
-- PUBG / Fortnite modes
-
-## Local Run
-
-Use a local server for full functionality (especially Fetch):
-
-1. Open project in VS Code.
-2. Open `files/players.html` with Live Server.
-3. Navigate pages through navbar.
-
-## Backend API (Optional Local Dev)
-
-Basic Express API is included in `backend/`.
-
-1. Open `backend` folder terminal.
-2. Install dependencies:
-   - `npm install`
-3. Start server:
-   - `npm start`
-
-## Netlify Deployment
-
-This project is configured for Netlify:
-
-- Static publish folder: `files`
-- Netlify Functions folder: `netlify/functions`
-
-Included functions:
-- `/.netlify/functions/players` — player catalog from `data.json`
-- `/.netlify/functions/store` — cloud database (Netlify Blobs) for users, tournaments, and participants
-
-Before deploy, install function dependencies:
-
+**Option 2: Supabase CLI**
 ```bash
-cd netlify/functions
-npm install
+supabase link --project-ref pdhukukrfeuvikfitred
+supabase db push
 ```
 
-The site keeps **localStorage** for fast offline use and syncs to **Netlify Blobs** when deployed so tournaments and logins work worldwide.
+**Option 3: psql direct**
+```bash
+psql "postgresql://postgres.pdhukukrfeuvikfitred:YOUR-PASSWORD@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres" -f supabase/migrations/00001_initial_schema.sql
+```
 
-## Schedule Page
+### Get Your Anon Key
+1. In Supabase dashboard, go to **Settings > API**
+2. Copy the **anon public** key (not the service_role key)
+3. Save it for the Netlify setup below
 
-The Schedule page reads real matches from created tournaments (no placeholder rows). Tournament owners can edit date, stage, status, and winner; everyone can filter by tournament and view bracket cards.
+## Netlify Setup
 
-## Project Goal
+### Required Environment Variables
+Set these in your Netlify dashboard under **Site settings > Environment variables**:
 
-Create a practical, creative tournament platform where friends can quickly set up and manage game nights while keeping each game's team logic authentic.
+| Variable | Value |
+|---|---|
+| `SUPABASE_URL` | `https://pdhukukrfeuvikfitred.supabase.co` |
+| `SUPABASE_ANON_KEY` | Your Supabase anon public key |
+
+### Deploy
+1. Connect your Git repository to Netlify
+2. Build command: (none — static site)
+3. Publish directory: `files`
+4. Functions directory: `netlify/functions`
+5. Deploy
+
+Alternatively, use the Netlify CLI:
+```bash
+netlify deploy --prod
+```
+
+### Local Development
+1. Create a `.env` file with your Supabase credentials:
+```
+SUPABASE_URL=https://pdhukukrfeuvikfitred.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+```
+
+2. Serve the `files/` directory locally:
+```bash
+npx serve files
+```
+
+Or use the Netlify dev server:
+```bash
+netlify dev
+```
+
+## Verify Data Storage
+
+1. Create a tournament on the live site
+2. Go to Supabase dashboard > **Table Editor** > `tournaments`
+3. You should see a row with your tournament's JSON data
+4. Create a user account — you should see a row in `profiles`
+5. Add players to your squad — you should see rows in `user_players`
+
+## Export/Import Feature
+
+**Export:** On any tournament page, click "Export Backup" to download a `.json` file with all tournament data (teams, matches, settings, etc.)
+
+**Import:** On the My Hub page (`my-tournaments.html`), use the "Import Tournament Backup" section to upload a previously exported `.json` file. The imported tournament will be created as a new tournament in Supabase with fresh IDs.
+
+## What Changed
+
+### Removed
+- Netlify Blobs store function (`netlify/functions/store.mjs`)
+- Legacy player catalog function (`netlify/functions/players.js`)
+- Utility file (`netlify/functions/_utils.js`)
+- Custom PBKDF2 authentication
+- All localStorage-based data storage for tournaments/users/players
+- Cloud sync system with periodic pull/push
+
+### Added
+- Supabase database for all live data storage
+- Supabase Auth (email/password) — secure password hashing
+- In-memory cache layer for fast reads
+- Loading states and error handling
+- Tournament export (JSON download)
+- Tournament import (JSON upload with validation)
+- `netlify/functions/supabase-config.mjs` — provides Supabase config to frontend
+- `supabase/migrations/00001_initial_schema.sql` — database schema
+
+### Kept
+- All rendering logic and UI (unchanged)
+- MetaMask / Web3 integration
+- Theme toggle (localStorage for preference only)
+- Chatbot helper
+- Static file structure
+
+## Database Schema
+
+**profiles** — User profiles linked to Supabase Auth
+**tournaments** — Tournament data as JSONB (teams, matches, requests, settings all nested)
+**user_players** — Player squad rosters per user

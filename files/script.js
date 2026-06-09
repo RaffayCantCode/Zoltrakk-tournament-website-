@@ -1,9 +1,4 @@
 const THEME_KEY = "zoltrakk_theme";
-const REG_KEY = "tournament_participants";
-const TOURNAMENTS_KEY = "zoltrakk_tournaments_v2";
-const USERS_KEY = "zoltrakk_users";
-const CURRENT_USER_KEY = "zoltrakk_current_user";
-const STORE_API = "/.netlify/functions/store";
 const DEFAULT_PLAYER_IMAGE = "images/player-default.svg";
 const MAX_PLAYER_IMAGE_BYTES = 450000;
 const DEFAULT_BANNERS = {
@@ -13,20 +8,7 @@ const DEFAULT_BANNERS = {
   "Overwatch": "images/game-ow2-banner.jpg"
 };
 const OPEN_STATUSES = ["upcoming", "active"];
-
-let cloudOnline = false;
-let syncInFlight = false;
-let lastSyncTime = null;
-const LAST_SYNC_KEY = "zoltrakk_last_sync";
-
-function getLastSyncTime() {
-  const stored = localStorage.getItem(LAST_SYNC_KEY);
-  return stored || null;
-}
-function setLastSyncTime() {
-  lastSyncTime = nowIso();
-  localStorage.setItem(LAST_SYNC_KEY, lastSyncTime);
-}
+const CACHE_KEY_TOURNAMENTS = "zoltrakk_cache_tournaments";
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
 function formatDate12h(val) {
@@ -41,172 +23,183 @@ function formatDate12h(val) {
 function esc(s) { const d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 function nowIso() { return new Date().toISOString(); }
 
-function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); }
-function setUsers(v, opts = {}) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(v));
-  if (!opts.skipCloud) pushCloudCollection("users", v).catch(() => {});
-}
-function getCurrentUser() { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null"); }
-function setCurrentUser(v) { localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(v)); }
-function clearCurrentUser() { localStorage.removeItem(CURRENT_USER_KEY); }
-function getTournaments() { return JSON.parse(localStorage.getItem(TOURNAMENTS_KEY) || "[]"); }
-function setTournaments(v, opts = {}) {
-  localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(v));
-  if (!opts.skipCloud) pushCloudCollection("tournaments", v).catch(() => {});
+// ── Supabase Client ──────────────────────────────────────────
+let supabaseClient = null;
+let _supabaseReady = false;
+
+async function initSupabase() {
+  if (_supabaseReady) return;
+  try {
+    const res = await fetch("/.netlify/functions/supabase-config");
+    const cfg = await res.json();
+    supabaseClient = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  } catch {
+    // Local dev fallback — set these in localStorage or use defaults
+    const url = localStorage.getItem("supabase_url") || "https://pdhukukrfeuvikfitred.supabase.co";
+    const key = localStorage.getItem("supabase_anon_key") || "";
+    supabaseClient = supabase.createClient(url, key);
+  }
+  _supabaseReady = true;
 }
 
-function mergeByUpdatedAt(localArr, cloudArr) {
-  const map = new Map();
-  [...localArr, ...cloudArr].forEach((item) => {
-    if (!item?.id) return;
-    const prev = map.get(item.id);
-    if (!prev) return map.set(item.id, item);
-    const prevTime = new Date(prev.updatedAt || prev.createdAt || 0).getTime();
-    const nextTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
-    map.set(item.id, nextTime >= prevTime ? item : prev);
-  });
-  return Array.from(map.values());
+// ── Cache Layer ──────────────────────────────────────────────
+let _tournamentsCache = null;
+let _currentUserCache = null;
+let _userPlayersCache = null;
+
+function getTournaments() { return _tournamentsCache || []; }
+
+async function loadTournaments() {
+  if (_tournamentsCache) return _tournamentsCache;
+  try {
+    const { data, error } = await supabaseClient
+      .from("tournaments")
+      .select("data")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    _tournamentsCache = (data || []).map(r => r.data);
+    return _tournamentsCache;
+  } catch (err) {
+    console.error("Failed to load tournaments:", err);
+    _tournamentsCache = [];
+    return [];
+  }
 }
 
-function mergeUsers(local, cloud) {
-  const map = new Map(local.map((u) => [u.email, u]));
-  cloud.forEach((cu) => {
-    const prev = map.get(cu.email);
-    if (!prev) map.set(cu.email, { ...cu });
-    else map.set(cu.email, { ...prev, ...cu, password: prev.password || cu.password });
-  });
-  return Array.from(map.values());
+async function saveTournamentToSupabase(t) {
+  t.updatedAt = nowIso();
+  const user = _currentUserCache;
+  const { error } = await supabaseClient
+    .from("tournaments")
+    .upsert({
+      id: t.id,
+      owner_id: user?.id || null,
+      data: t,
+      updated_at: t.updatedAt
+    }, { onConflict: "id" });
+  if (error) throw error;
 }
 
-async function fetchCloudCollection(collection) {
-  const res = await fetch(`${STORE_API}?collection=${collection}`);
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.message || "Cloud fetch failed");
-  return json.data || [];
+async function deleteTournamentFromSupabase(id) {
+  const { error } = await supabaseClient
+    .from("tournaments")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
 }
 
-async function pushCloudCollection(collection, data) {
-  const res = await fetch(STORE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ collection, data })
-  });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.message || "Cloud push failed");
-  return json;
-}
-
-async function cloudRegister(user) {
-  const res = await fetch(STORE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "register", user })
-  });
-  return res.json();
-}
-
-async function cloudLogin(email, password) {
-  const res = await fetch(STORE_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "login", email, password })
-  });
-  return res.json();
-}
-
-function injectSyncBadges() {
-  document.querySelectorAll("footer").forEach((footer) => {
-    if (!footer.querySelector("[data-sync-badge]")) {
-      footer.appendChild(document.createTextNode(" "));
-      const span = document.createElement("span");
-      span.setAttribute("data-sync-badge", "");
-      footer.appendChild(span);
-    }
-  });
-}
-
-function updateSyncBadge() {
-  injectSyncBadges();
-  const lastSync = getLastSyncTime();
-  const timeStr = lastSync ? ` · Last sync: ${formatDate12h(lastSync)}` : "";
-  document.querySelectorAll("[data-sync-badge]").forEach((el) => {
-    el.innerHTML = cloudOnline
-      ? `<span class="sync-badge online">Cloud connected${timeStr}</span>`
-      : `<span class="sync-badge offline">Cloud offline · <button class="btn ghost" id="manualSyncBtn" style="padding:2px 8px;font-size:.75rem;border:none;background:transparent;color:var(--muted);text-decoration:underline;cursor:pointer">Sync now</button></span>`;
-    const syncBtn = document.getElementById("manualSyncBtn");
-    if (syncBtn) syncBtn.onclick = async () => {
-      syncBtn.textContent = "Syncing...";
-      await syncAllFromCloud();
-      location.reload();
+// ── Auth Layer ────────────────────────────────────────────────
+async function loadCurrentUser() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { _currentUserCache = null; return null; }
+    const meta = session.user.user_metadata || {};
+    _currentUserCache = {
+      id: session.user.id,
+      email: session.user.email,
+      name: `${meta.firstName || ""} ${meta.lastName || ""}`.trim() || session.user.email?.split("@")[0] || "User",
+      firstName: meta.firstName || "",
+      lastName: meta.lastName || ""
     };
-  });
+    return _currentUserCache;
+  } catch {
+    _currentUserCache = null;
+    return null;
+  }
 }
 
-async function syncAllFromCloud() {
-  if (syncInFlight) return;
-  syncInFlight = true;
-  let cloudReachable = false;
+function getCurrentUser() { return _currentUserCache; }
+
+async function signUpUser(email, password, profile) {
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: { data: profile }
+  });
+  if (error) throw error;
+  if (!data.user) throw new Error("Signup failed. Check your email for confirmation.");
+  return data;
+}
+
+async function signInUser(email, password) {
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function signOutUser() {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) throw error;
+  _currentUserCache = null;
+}
+
+// ── Player Squad ──────────────────────────────────────────────
+function getUserPlayers() { return _userPlayersCache || []; }
+
+async function loadUserPlayers() {
+  const user = _currentUserCache;
+  if (!user) { _userPlayersCache = []; return []; }
   try {
-    const [cloudUsers, cloudTournaments, cloudParticipants, cloudUserPlayers] = await Promise.all([
-      fetchCloudCollection("users"),
-      fetchCloudCollection("tournaments"),
-      fetchCloudCollection("participants"),
-      fetchCloudCollection("user_players")
-    ]);
-    cloudReachable = true;
-    cloudOnline = true;
-
-    const localUsers = getUsers();
-    const mergedUsers = mergeUsers(localUsers, cloudUsers);
-    setUsers(mergedUsers, { skipCloud: true });
-
-    const localTournaments = getTournaments();
-    const mergedTournaments = mergeByUpdatedAt(localTournaments, cloudTournaments);
-    setTournaments(mergedTournaments, { skipCloud: true });
-
-    const localParticipants = JSON.parse(localStorage.getItem(REG_KEY) || "[]");
-    const mergedParticipants = mergeByUpdatedAt(
-      localParticipants.map((p, i) => ({ ...p, id: p.id || `local_${i}` })),
-      cloudParticipants
-    );
-    localStorage.setItem(REG_KEY, JSON.stringify(mergedParticipants));
-
-    const user = getCurrentUser();
-    if (user && Array.isArray(cloudUserPlayers)) {
-      const myCloud = cloudUserPlayers.find((u) => u.userId === user.id);
-      if (myCloud && Array.isArray(myCloud.players)) {
-        const localPlayers = getUserPlayers();
-        const merged = mergeByUpdatedAt(localPlayers, myCloud.players);
-        localStorage.setItem(userPlayersKey(user.id), JSON.stringify(merged));
-      }
-    }
-  } catch {
-    cloudOnline = false;
+    const { data, error } = await supabaseClient
+      .from("user_players")
+      .select("data")
+      .eq("user_id", user.id)
+      .single();
+    if (error && error.code !== "PGRST116") throw error;
+    _userPlayersCache = data?.data || [];
+    return _userPlayersCache;
+  } catch (err) {
+    console.error("Failed to load user players:", err);
+    _userPlayersCache = [];
+    return [];
   }
-  // Always push local data to cloud whether fetch succeeded or not.
-  // This seeds a fresh cloud store and recovers from any fetch failure.
+}
+
+async function saveUserPlayers(data) {
+  const user = _currentUserCache;
+  if (!user) return;
+  const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
+  _userPlayersCache = withIds;
   try {
-    await Promise.all([
-      pushCloudCollection("users", getUsers()).catch(() => {}),
-      pushCloudCollection("tournaments", getTournaments()).catch(() => {}),
-      pushCloudCollection("participants", JSON.parse(localStorage.getItem(REG_KEY) || "[]")).catch(() => {}),
-      pushUserPlayersToCloud().catch(() => {})
-    ]);
-    if (!cloudReachable) cloudOnline = true;
-    setLastSyncTime();
-  } catch {
-    if (!cloudReachable) cloudOnline = false;
-  } finally {
-    syncInFlight = false;
-    updateSyncBadge();
+    await supabaseClient
+      .from("user_players")
+      .upsert({
+        user_id: user.id,
+        data: withIds,
+        updated_at: nowIso()
+      }, { onConflict: "user_id" });
+  } catch (err) {
+    console.error("Failed to save user players:", err);
   }
+}
+
+// ── Toast / Loading Helpers ──────────────────────────────────
+function showToast(msg, type) {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type || "info"}`;
+  toast.textContent = msg;
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "20px", right: "20px", zIndex: "9999",
+    padding: "12px 20px", borderRadius: "8px", fontSize: ".9rem",
+    background: type === "error" ? "#dc2626" : type === "success" ? "#16a34a" : "#333",
+    color: "#fff", maxWidth: "360px", boxShadow: "0 4px 12px rgba(0,0,0,.25)",
+    transition: "opacity .3s", opacity: "1"
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = "0"; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function showLoading(el, msg) {
+  if (!el) return;
+  el.innerHTML = `<div class="loading-spinner" style="text-align:center;padding:20px">
+    <div class="spinner"></div>
+    <p style="color:var(--muted);margin-top:8px">${esc(msg || "Loading...")}</p>
+  </div>`;
 }
 
 function isTournamentAdmin(t) {
   const user = getCurrentUser();
-  const ownerMatch = user && (user.id === t.ownerUserId || user.email === t.ownerEmail);
-  const localAdmin = localStorage.getItem(`zoltrakk_admin_${t.id}`) === t.adminId;
-  return Boolean(ownerMatch || localAdmin);
+  return Boolean(user && (user.id === t.ownerUserId || user.email === t.ownerEmail));
 }
 
 function normalizeMatch(m, index = 0) {
@@ -227,32 +220,6 @@ function normalizeMatch(m, index = 0) {
 function touchTournament(t) {
   t.updatedAt = nowIso();
   return t;
-}
-
-function userPlayersKey(userId) { return `zoltrakk_players_${userId}`; }
-
-function getUserPlayers() {
-  const user = getCurrentUser();
-  if (!user) return [];
-  return JSON.parse(localStorage.getItem(userPlayersKey(user.id)) || "[]");
-}
-
-function setUserPlayers(data) {
-  const user = getCurrentUser();
-  if (!user) return;
-  const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
-  localStorage.setItem(userPlayersKey(user.id), JSON.stringify(withIds));
-}
-
-async function pushUserPlayersToCloud() {
-  const user = getCurrentUser();
-  if (!user) return;
-  const local = getUserPlayers();
-  const cloud = await fetchCloudCollection("user_players").catch(() => []);
-  const existing = cloud.find((u) => u.userId === user.id) || { userId: user.id, players: [] };
-  const merged = mergeByUpdatedAt(local, existing.players);
-  const updated = cloud.filter((u) => u.userId !== user.id).concat([{ userId: user.id, players: merged }]);
-  await pushCloudCollection("user_players", updated);
 }
 
 function initTheme() {
@@ -375,9 +342,9 @@ function normalizeHeaderNav() {
   nav.innerHTML = `<div class="nav-main">${mainHtml}</div><div class="nav-auth">${authHtml}</div>`;
   const logout = nav.querySelector("[data-logout]");
   if (logout) {
-    logout.onclick = (e) => {
+    logout.onclick = async (e) => {
       e.preventDefault();
-      clearCurrentUser();
+      await signOutUser();
       location.href = "login.html";
     };
   }
@@ -606,10 +573,10 @@ async function initPlayersPage() {
         : `<img class="participant-thumb" src="${DEFAULT_PLAYER_IMAGE}" alt="">`;
       return `<li>${thumb}<span>${esc(p.name)} · ${esc(p.game)}${p.rank ? ` · ${esc(p.rank)}` : ""}</span><button data-i="${i}">Remove</button></li>`;
     }).join("");
-    list.querySelectorAll("button").forEach((b) => b.onclick = () => {
+    list.querySelectorAll("button").forEach((b) => b.onclick = async () => {
       const a = getUserPlayers();
       a.splice(+b.dataset.i, 1);
-      setUserPlayers(a);
+      await saveUserPlayers(a);
       renderParticipants();
     });
     renderGrid();
@@ -631,7 +598,7 @@ async function initPlayersPage() {
     try {
       const image = await readOptionalImage(imageInput);
       all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
-      setUserPlayers(all);
+      await saveUserPlayers(all);
       form.reset();
       if (imagePreview) {
         imagePreview.classList.add("hidden");
@@ -688,28 +655,17 @@ function initSignupPage() {
     if (p !== c) { setErr("matchErr", "Passwords do not match."); ok = false; }
     if (!ok) return;
 
-    let users = getUsers();
-    if (users.some((u) => u.email === em)) return setErr("emailErr", "Account already exists for this email.");
+    const signupMsg = document.getElementById("signupSuccess");
     try {
-      const cloudUsers = await fetchCloudCollection("users");
-      users = mergeUsers(users, cloudUsers);
-      setUsers(users, { skipCloud: true });
-      if (users.some((u) => u.email === em)) return setErr("emailErr", "Account already exists for this email.");
-    } catch { /* offline - local check is sufficient */ }
-    const user = { id: uid(), firstName: f, lastName: l, age: a, email: em, password: p, updatedAt: nowIso() };
-    users.push(user);
-    setUsers(users);
-    setCurrentUser({ id: user.id, name: `${f} ${l}`, email: user.email });
-    document.getElementById("signupSuccess").textContent = "Signup successful. Syncing to cloud...";
-    try {
-      await cloudRegister(user);
-      cloudOnline = true;
-      updateSyncBadge();
-    } catch {
-      /* local account still works */
+      signupMsg.textContent = "Creating account...";
+      await signUpUser(em, p, { firstName: f, lastName: l, age: a });
+      await loadCurrentUser();
+      signupMsg.textContent = "Account created. Redirecting...";
+      setTimeout(() => { location.href = "my-tournaments.html"; }, 650);
+    } catch (err) {
+      if (err.message?.includes("already")) setErr("emailErr", "An account with this email already exists.");
+      else setErr("emailErr", err.message || "Signup failed. Please try again.");
     }
-    document.getElementById("signupSuccess").textContent = "Signup successful. Redirecting...";
-    setTimeout(() => { location.href = "my-tournaments.html"; }, 650);
   });
 }
 
@@ -741,50 +697,19 @@ function initLoginPage() {
     const status = document.getElementById("loginStatus");
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.textContent = "Checking...";
+    submitBtn.textContent = "Signing in...";
 
-    let users = getUsers();
-    let user = users.find((u) => u.email === em);
-
-    if (!user) {
-      try {
-        const cloudUsers = await fetchCloudCollection("users");
-        users = mergeUsers(users, cloudUsers);
-        setUsers(users, { skipCloud: true });
-        user = users.find((u) => u.email === em);
-      } catch { /* fallback */ }
-    }
-
-    if (!user) {
-      status.textContent = "No account found with this email address.";
+    try {
+      await signInUser(em, p);
+      await loadCurrentUser();
+      status.className = "success";
+      status.textContent = "Login successful. Redirecting...";
+      setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
+    } catch (err) {
+      status.textContent = err.message || "Invalid email or password.";
       submitBtn.disabled = false;
       submitBtn.textContent = "Login";
-      return;
     }
-
-    let passwordMatch = user.password === p;
-    if (!passwordMatch) {
-      try {
-        const cloud = await cloudLogin(em, p);
-        if (cloud.success && cloud.user) {
-          passwordMatch = true;
-          cloudOnline = true;
-          updateSyncBadge();
-        }
-      } catch { /* fallback */ }
-    }
-
-    if (!passwordMatch) {
-      status.textContent = "Incorrect password.";
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Login";
-      return;
-    }
-
-    setCurrentUser({ id: user.id, name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email, email: user.email });
-    status.className = "success";
-    status.textContent = "Login successful. Redirecting...";
-    setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
   });
 }
 
@@ -902,20 +827,20 @@ function initCreateTournamentPage() {
 
     const all = getTournaments();
     all.push(t);
-    setTournaments(all);
-    localStorage.setItem(`zoltrakk_admin_${tId}`, adminId);
+    _tournamentsCache = all;
+    try {
+      await saveTournamentToSupabase(t);
+    } catch (err) {
+      msg.textContent = "Saved locally but failed to sync to database: " + err.message;
+    }
     form.reset();
     adminInput.value = user.name;
     lineupFields.innerHTML = "";
     hint.textContent = "";
     msg.className = "success";
-    msg.innerHTML = `<p style="margin:0"><strong>Syncing to cloud...</strong> <span class="live-indicator" style="display:inline-flex;vertical-align:middle">Syncing</span></p>`;
-    try {
-      await pushCloudCollection("tournaments", getTournaments());
-    } catch {}
     const link = safeShareUrl(t);
     msg.innerHTML = `
-      <p style="margin:0 0 10px"><strong>Tournament created & synced!</strong> Share the link with friends so they can join teams.</p>
+      <p style="margin:0 0 10px"><strong>Tournament created!</strong> Share the link with friends so they can join teams.</p>
       <p style="word-break:break-all;margin:0 0 12px"><a href="${link}">${link}</a></p>
       <div style="display:flex;flex-wrap:wrap;gap:10px">
         <a class="btn" href="${link}">Open Tournament</a>
@@ -974,12 +899,19 @@ function initTournamentsPage() {
   [search, gameFilter, sort].forEach((el) => el.addEventListener("input", render));
   render();
 
+  // Refresh tournaments from Supabase every 15 seconds
   const startRealtimeRefresh = () => {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(async () => {
-      await syncAllFromCloud();
-      render();
-    }, 8000);
+      try {
+        const { data } = await supabaseClient
+          .from("tournaments")
+          .select("data")
+          .order("created_at", { ascending: false });
+        if (data) _tournamentsCache = data.map(r => r.data);
+        render();
+      } catch {}
+    }, 15000);
   };
   const pauseBtn = document.createElement("button");
   pauseBtn.className = "btn alt";
@@ -1040,13 +972,83 @@ function bindTournamentCardCopies(root) {
   });
 }
 
-function saveTournament(t) {
+async function saveTournament(t) {
   touchTournament(t);
   const arr = getTournaments();
   const idx = arr.findIndex((x) => x.id === t.id);
   if (idx >= 0) arr[idx] = t;
   else arr.push(t);
-  setTournaments(arr);
+  _tournamentsCache = arr;
+  try {
+    await saveTournamentToSupabase(t);
+  } catch (err) {
+    console.error("Failed to save tournament to Supabase:", err);
+  }
+}
+
+// ── Export / Import Backup ───────────────────────────────────
+function exportTournamentAsJson(t) {
+  const data = JSON.stringify(t, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `zoltrakk-tournament-${(t.tournamentName || "export").replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${t.id.slice(0, 8)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Tournament exported successfully", "success");
+}
+
+function importTournamentFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.tournamentName || !data.game) {
+          reject(new Error("Invalid tournament file: missing name or game"));
+          return;
+        }
+        if (typeof data.teams === "undefined" || typeof data.matches === "undefined") {
+          reject(new Error("Invalid tournament file: missing teams or matches"));
+          return;
+        }
+        data.id = uid();
+        data.shareToken = uid();
+        data.createdAt = nowIso();
+        data.updatedAt = nowIso();
+        data.status = "upcoming";
+        data.completedAt = null;
+        const user = getCurrentUser();
+        if (user) {
+          data.ownerUserId = user.id;
+          data.ownerEmail = user.email;
+          data.adminName = user.name;
+          data.adminId = uid();
+        }
+        data.announcements = data.announcements || [];
+        data.joinRequests = data.joinRequests || [];
+        data.removedPlayers = data.removedPlayers || [];
+        data.matches = (data.matches || []).map((m) => {
+          m.id = m.id || uid();
+          return m;
+        });
+        data.teams = (data.teams || []).map((team) => {
+          team.id = team.id || uid();
+          team.members = (team.members || []).map((m) => ({ ...m }));
+          return team;
+        });
+        await saveTournament(data);
+        resolve(data);
+      } catch (err) {
+        reject(new Error("Invalid tournament file: " + err.message));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsText(file);
+  });
 }
 
 function renderDetailWithAccessCheck(t, root) {
@@ -1076,25 +1078,31 @@ function initTournamentDetailPage() {
   if (!t) {
     root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
       <p style="font-size:1.1rem;margin:0 0 8px;font-weight:700">Loading tournament...</p>
-      <p style="color:var(--muted);margin:0 0 14px">Fetching from cloud storage.</p>
-      <div class="live-indicator" style="margin:0 auto">Syncing</div>
+      <p style="color:var(--muted);margin:0 0 14px">Fetching from database.</p>
+      <div class="loading-spinner" style="text-align:center;padding:10px"><div class="spinner"></div></div>
     </div>`;
     (async () => {
       try {
-        await syncAllFromCloud();
-        t = fetchTournamentFromStore();
+        const { data } = await supabaseClient
+          .from("tournaments")
+          .select("data")
+          .eq("id", id)
+          .single();
+        if (data?.data) {
+          t = data.data;
+          if (!_tournamentsCache) _tournamentsCache = [];
+          const idx = _tournamentsCache.findIndex(x => x.id === t.id);
+          if (idx >= 0) _tournamentsCache[idx] = t;
+          else _tournamentsCache.push(t);
+        }
       } catch {}
       if (!t) {
         root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
           <p style="font-size:1.1rem;margin:0 0 8px;font-weight:700">Tournament not found</p>
-          <p style="color:var(--muted);margin:0 0 4px">This tournament hasn't been synced to this device yet.</p>
-          <p style="color:var(--muted);margin:0 0 16px">Make sure the host has created the tournament on a <strong>deployed Netlify site</strong> so the cloud storage is shared. Local browser storage does not sync across devices.</p>
-          <button class="btn alt" id="retryTournamentLoad" style="margin-bottom:8px">Retry Cloud Sync</button>
+          <p style="color:var(--muted);margin:0 0 4px">The tournament you're looking for doesn't exist or hasn't been created yet.</p>
+          <p style="color:var(--muted);margin:0 0 16px">Make sure the link is correct and the tournament has been saved to the database.</p>
           <a class="btn" href="tournaments.html">Browse Tournaments</a>
         </div>`;
-        document.getElementById("retryTournamentLoad")?.addEventListener("click", async () => {
-          await syncAllFromCloud(); location.reload();
-        });
         return;
       }
       renderDetailWithAccessCheck(t, root);
@@ -1142,6 +1150,7 @@ function renderDetail(t) {
           <div style="display:flex;flex-wrap:wrap;gap:8px">
             <a class="btn alt" href="schedule.html?tournament=${t.id}" style="padding:10px 18px;font-size:.85rem">Schedule</a>
             <button class="btn ghost" id="copyTournamentLink" style="padding:10px 18px;font-size:.85rem">Copy Link</button>
+            <button class="btn alt" id="exportTournamentBtn" style="padding:10px 18px;font-size:.85rem">Export Backup</button>
             ${isAdmin ? `
             <select id="statusSelect" class="inline-select" style="width:auto;min-width:120px;padding:9px 12px;font-size:.85rem">
               <option value="upcoming">Upcoming</option>
@@ -1285,12 +1294,16 @@ function renderDetail(t) {
       copyBtn.textContent = "Copy blocked — select URL above";
     }
   };
+  const exportBtn = document.getElementById("exportTournamentBtn");
+  if (exportBtn) {
+    exportBtn.onclick = () => exportTournamentAsJson(t);
+  }
   if (isAdmin) {
     document.getElementById("statusSelect").value = t.status || "upcoming";
-    document.getElementById("saveStatusBtn").onclick = () => {
+    document.getElementById("saveStatusBtn").onclick = async () => {
       t.status = document.getElementById("statusSelect").value;
       if (t.status === "completed") t.completedAt = nowIso();
-      saveTournament(t);
+      await saveTournament(t);
       location.reload();
     };
     document.getElementById("editGame").value = t.game;
@@ -1307,7 +1320,7 @@ function renderDetail(t) {
         const tx = await sendEthWithMetaMask({ to: t.paymentWallet, amountEth: t.prize.amount });
         t.prize.fundingTx = tx;
         t.prize.verificationStatus = "pending";
-        saveTournament(t);
+        await saveTournament(t);
         editMsg.className = "success";
         editMsg.textContent = "Prize transaction recorded. Review and verify it before advertising this as a rewarded event.";
         setTimeout(() => location.reload(), 700);
@@ -1315,19 +1328,19 @@ function renderDetail(t) {
         editMsg.textContent = err.message || "MetaMask transaction failed.";
       }
     });
-    document.getElementById("verifyPrizeBtn")?.addEventListener("click", () => {
+    document.getElementById("verifyPrizeBtn")?.addEventListener("click", async () => {
       t.prize.verificationStatus = "verified";
-      saveTournament(t);
+      await saveTournament(t);
       location.reload();
     });
-    document.getElementById("confirmWinnersBtn")?.addEventListener("click", () => {
+    document.getElementById("confirmWinnersBtn")?.addEventListener("click", async () => {
       t.prize.winnerConfirmed = true;
       t.prize.claims = completedWinners(t).map((winner) => ({
         winner,
         status: "ready-to-claim",
         confirmedAt: nowIso()
       }));
-      saveTournament(t);
+      await saveTournament(t);
       location.reload();
     });
     document.getElementById("saveTournamentEdit").onclick = async () => {
@@ -1366,7 +1379,7 @@ function renderDetail(t) {
           claims: t.prize?.claims || [],
           winnerConfirmed: Boolean(t.prize?.winnerConfirmed)
         };
-        saveTournament(t);
+        await saveTournament(t);
         editMsg.className = "success";
         editMsg.textContent = "Tournament updated.";
         setTimeout(() => location.reload(), 500);
@@ -1416,7 +1429,7 @@ function renderDetail(t) {
             }
           }
           applyJoin(join);
-          saveTournament(t);
+          await saveTournament(t);
           renderAll();
           msg.className = "success";
           msg.textContent = `${name} added to ${team.name}.`;
@@ -1443,7 +1456,7 @@ function renderDetail(t) {
             }
           }
           applyJoin(join);
-          saveTournament(t);
+          await saveTournament(t);
           renderAll();
           msg.className = "success";
           msg.textContent = `${name} added to new team ${newTeamName}.`;
@@ -1501,26 +1514,26 @@ function renderDetail(t) {
       <button class="btn alt" data-down="${tm.id}">Move Down</button>` : ""}
       </article>`).join("") : "<p>No teams yet.</p>";
     if (isAdmin) {
-      list.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); saveTournament(t); renderAll(); });
-      list.querySelectorAll("[data-remove-member]").forEach((b) => b.onclick = () => {
+      list.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); await saveTournament(t); renderAll(); });
+      list.querySelectorAll("[data-remove-member]").forEach((b) => b.onclick = async () => {
         const team = t.teams.find((x) => x.id === b.dataset.removeMember);
         const member = team?.members?.[Number(b.dataset.member)];
         if (!team || !member) return;
         t.removedPlayers.push({ name: member.name.toLowerCase(), removedAt: nowIso(), approvedAgain: false });
         team.members.splice(Number(b.dataset.member), 1);
-        saveTournament(t);
+        await saveTournament(t);
         renderAll();
       });
-      list.querySelectorAll("[data-up]").forEach((b) => b.onclick = () => {
+      list.querySelectorAll("[data-up]").forEach((b) => b.onclick = async () => {
         const i = t.teams.findIndex((x) => x.id === b.dataset.up);
         if (i > 0) [t.teams[i - 1], t.teams[i]] = [t.teams[i], t.teams[i - 1]];
-        saveTournament(t);
+        await saveTournament(t);
         renderAll();
       });
-      list.querySelectorAll("[data-down]").forEach((b) => b.onclick = () => {
+      list.querySelectorAll("[data-down]").forEach((b) => b.onclick = async () => {
         const i = t.teams.findIndex((x) => x.id === b.dataset.down);
         if (i < t.teams.length - 1) [t.teams[i + 1], t.teams[i]] = [t.teams[i], t.teams[i + 1]];
-        saveTournament(t);
+        await saveTournament(t);
         renderAll();
       });
     }
@@ -1549,20 +1562,20 @@ function renderDetail(t) {
         <button class="btn" data-approve-request="${r.id}">Approve</button>
         <button class="btn alt" data-deny-request="${r.id}">Deny</button>
       </article>`).join("") : "<p>No pending requests.</p>";
-    list.querySelectorAll("[data-approve-request]").forEach((b) => b.onclick = () => {
+    list.querySelectorAll("[data-approve-request]").forEach((b) => b.onclick = async () => {
       const req = t.joinRequests.find((r) => r.id === b.dataset.approveRequest);
       if (!req) return;
       req.status = "approved";
       applyJoin(req);
       t.removedPlayers = t.removedPlayers.filter((p) => p.name !== req.name.toLowerCase());
-      saveTournament(t);
+      await saveTournament(t);
       renderAll();
     });
-    list.querySelectorAll("[data-deny-request]").forEach((b) => b.onclick = () => {
+    list.querySelectorAll("[data-deny-request]").forEach((b) => b.onclick = async () => {
       const req = t.joinRequests.find((r) => r.id === b.dataset.denyRequest);
       if (!req) return;
       req.status = "denied";
-      saveTournament(t);
+      await saveTournament(t);
       renderAll();
     });
   };
@@ -1626,7 +1639,7 @@ function renderDetail(t) {
     }
     if (t.settings.joinApproval) {
       t.joinRequests.push(join);
-      saveTournament(t);
+      await saveTournament(t);
       renderAll();
       msg.className = "success";
       msg.textContent = "Join request sent for admin approval.";
@@ -1634,28 +1647,28 @@ function renderDetail(t) {
     }
     join.status = "approved";
     applyJoin(join);
-    saveTournament(t);
+    await saveTournament(t);
     renderAll();
     msg.className = "success";
     msg.textContent = "Joined successfully.";
   };
 
   if (isAdmin) {
-    document.getElementById("autoMatchBtn").onclick = () => {
+    document.getElementById("autoMatchBtn").onclick = async () => {
       if (t.matches.length > 0 && !confirm("This will replace all existing matches. Continue?")) return;
       t.matches = [];
       for (let i = 0; i < t.teams.length - 1; i += 2) {
         t.matches.push(normalizeMatch({ a: t.teams[i].name, b: t.teams[i + 1].name, mode: "auto" }, t.matches.length));
       }
-      saveTournament(t);
+      await saveTournament(t);
       renderAll();
     };
-    document.getElementById("manualMatchBtn").onclick = () => {
+    document.getElementById("manualMatchBtn").onclick = async () => {
       const a = t.teams.find((x) => x.id === document.getElementById("manualA").value);
       const b = t.teams.find((x) => x.id === document.getElementById("manualB").value);
       if (!a || !b || a.id === b.id) return;
       t.matches.push(normalizeMatch({ a: a.name, b: b.name, mode: "manual" }, t.matches.length));
-      saveTournament(t);
+      await saveTournament(t);
       renderAll();
     };
   }
@@ -1805,7 +1818,7 @@ function initSchedulePage() {
       };
     });
     root.querySelectorAll("[data-save-match]").forEach((btn) => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         const row = btn.closest("[data-match-id]");
         const matchId = row.dataset.matchId;
         const tournamentId = row.dataset.tournamentId;
@@ -1815,7 +1828,7 @@ function initSchedulePage() {
         const match = t.matches.find((x) => (x.id || "") === matchId);
         if (!match) return;
         row.querySelectorAll("[data-field]").forEach((el) => { match[el.dataset.field] = el.value; });
-        saveTournament(t);
+        await saveTournament(t);
         render();
       };
     });
@@ -1850,11 +1863,45 @@ function initMyTournamentsPage() {
       ${t.status === "completed" ? `<button class="btn alt" data-delete-history="${t.id}">Delete from History</button>` : ""}
     </article>`).join("");
   root.querySelectorAll("[data-delete-history]").forEach((b) => {
-    b.onclick = () => {
-      const updated = getTournaments().filter((t) => t.id !== b.dataset.deleteHistory);
-      setTournaments(updated);
+    b.onclick = async () => {
+      const id = b.dataset.deleteHistory;
+      _tournamentsCache = getTournaments().filter((t) => t.id !== id);
+      try {
+        await deleteTournamentFromSupabase(id);
+      } catch {}
       initMyTournamentsPage();
     };
+  });
+
+  // Add import section
+  const importSection = document.createElement("div");
+  importSection.className = "card";
+  importSection.style.cssText = "padding:20px;margin-top:18px";
+  importSection.innerHTML = `
+    <h3>Import Tournament Backup</h3>
+    <p class="hint-text">Import a previously exported tournament file (.json). A new tournament will be created with the imported data.</p>
+    <input type="file" id="importTournamentFile" accept=".json" style="margin-bottom:10px">
+    <button class="btn" id="importTournamentBtn">Import Tournament</button>
+    <p id="importMsg" class="error" style="margin-top:8px"></p>`;
+  root.after(importSection);
+
+  document.getElementById("importTournamentBtn")?.addEventListener("click", async () => {
+    const fileInput = document.getElementById("importTournamentFile");
+    const msg = document.getElementById("importMsg");
+    msg.textContent = "";
+    msg.className = "error";
+    if (!fileInput?.files?.length) {
+      msg.textContent = "Please select a tournament backup file (.json).";
+      return;
+    }
+    try {
+      const t = await importTournamentFromFile(fileInput.files[0]);
+      msg.className = "success";
+      msg.innerHTML = `Tournament "${esc(t.tournamentName)}" imported! <a href="tournament.html?id=${t.id}" class="btn" style="display:inline-block;margin-top:6px">Open</a>`;
+      fileInput.value = "";
+    } catch (err) {
+      msg.textContent = err.message;
+    }
   });
 }
 
@@ -1907,7 +1954,25 @@ function initContactPage() {
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
   initChatbot();
-  await syncAllFromCloud();
+
+  // Show loading state on dynamic containers
+  const detailRoot = document.getElementById("tournamentDetailRoot");
+  const scheduleRoot = document.getElementById("scheduleRoot");
+  const myToursRoot = document.getElementById("myTournamentsRoot");
+  const archiveRoot = document.getElementById("archiveRoot");
+  const tournamentsCard = document.querySelector("[data-created-tournaments]");
+  if (detailRoot) showLoading(detailRoot, "Loading tournament...");
+  if (myToursRoot) showLoading(myToursRoot, "Loading your tournaments...");
+  if (archiveRoot) showLoading(archiveRoot, "Loading archive...");
+  if (tournamentsCard) showLoading(tournamentsCard, "Loading tournaments...");
+
+  await initSupabase();
+  await Promise.all([
+    loadCurrentUser(),
+    loadTournaments(),
+    loadUserPlayers()
+  ]);
+
   normalizeHeaderNav();
   initHomeStats();
   initSignupPage();
@@ -1920,21 +1985,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   initArchivePage();
   initContactPage();
   initPlayersPage();
-  // Background re-sync 30s after load to ensure any newly created data is pushed
-  setTimeout(async () => {
-    try {
-      const tournaments = getTournaments();
-      const users = getUsers();
-      const participants = JSON.parse(localStorage.getItem(REG_KEY) || "[]");
-      await Promise.all([
-        pushCloudCollection("tournaments", tournaments).catch(() => {}),
-        pushCloudCollection("users", users).catch(() => {}),
-        pushCloudCollection("participants", participants).catch(() => {}),
-        pushUserPlayersToCloud().catch(() => {})
-      ]);
-      cloudOnline = true;
-      setLastSyncTime();
-      updateSyncBadge();
-    } catch {}
-  }, 30000);
 });
