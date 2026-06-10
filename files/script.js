@@ -50,12 +50,12 @@ let _userPlayersCache = null;
 function getTournaments() { return _tournamentsCache || []; }
 
 const MOCK_PLAYERS = [
-  { id: "p1", name: "Raffay", game: "Valorant", rank: "Diamond", image: DEFAULT_PLAYER_IMAGE },
-  { id: "p2", name: "Asif", game: "CS2", rank: "Platinum", image: DEFAULT_PLAYER_IMAGE },
-  { id: "p3", name: "Neo", game: "CS2", rank: "Diamond", image: DEFAULT_PLAYER_IMAGE },
-  { id: "p4", name: "Apex", game: "League of Legends", rank: "Gold", image: DEFAULT_PLAYER_IMAGE },
-  { id: "p5", name: "Volt", game: "Valorant", rank: "Gold", image: DEFAULT_PLAYER_IMAGE },
-  { id: "p6", name: "Specter", game: "Overwatch", rank: "Silver", image: DEFAULT_PLAYER_IMAGE }
+  { id: "p1", name: "Raffay", game: "Valorant", rank: "Diamond", image: "images/player_raffay.png" },
+  { id: "p2", name: "Asif", game: "CS2", rank: "Platinum", image: "images/player_asif.png" },
+  { id: "p3", name: "Neo", game: "CS2", rank: "Diamond", image: "images/player_neo.png" },
+  { id: "p4", name: "Apex", game: "League of Legends", rank: "Gold", image: "images/player_apex.png" },
+  { id: "p5", name: "Volt", game: "Valorant", rank: "Gold", image: "images/player_volt.png" },
+  { id: "p6", name: "Specter", game: "Overwatch", rank: "Silver", image: "images/player_specter.png" }
 ];
 
 function getMockTournaments() {
