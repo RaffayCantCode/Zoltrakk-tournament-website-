@@ -339,18 +339,51 @@ function touchTournament(t) {
   return t;
 }
 
+function getBracketSize(t) {
+  const maxPlayers = t.playerLimit || 32;
+  const isTeamGame = ["league of legends", "valorant", "cs2", "overwatch"].includes((t.game || "").toLowerCase());
+  const divisor = isTeamGame ? 5 : 1;
+  const estimatedTeams = Math.max(t.teams?.length || 0, Math.ceil(maxPlayers / divisor));
+  let size = 4;
+  while (size < estimatedTeams) {
+    size *= 2;
+  }
+  return size;
+}
+
+function syncTeamsToBracket(t) {
+  const teams = t.teams || [];
+  const bracketSize = getBracketSize(t);
+  const firstRoundMatchesCount = bracketSize / 2;
+
+  // Re-generate if matches are empty or round mismatch
+  const currentFirstRoundMatches = (t.matches || []).filter(m => m.stage === "Qualifier" || m.stage === "Round 1");
+  if (!t.matches || t.matches.length === 0 || currentFirstRoundMatches.length !== firstRoundMatchesCount) {
+    generateFullBracket(t);
+    return;
+  }
+
+  // Update teams in first round
+  for (let m = 0; m < firstRoundMatchesCount; m++) {
+    const match = t.matches[m];
+    if (match && match.status !== "completed") {
+      const teamA = teams[m * 2];
+      const teamB = teams[m * 2 + 1];
+      match.a = teamA ? teamA.name : "TBD";
+      match.b = teamB ? teamB.name : "TBD";
+    }
+  }
+}
+
 function generateFullBracket(t) {
   const teams = t.teams || [];
-  const n = teams.length;
-  if (n < 2) return;
-  const stageLabels = ["Qualifier", "Semi Final", "Grand Final"];
-  const rounds = Math.min(Math.ceil(Math.log2(n)), stageLabels.length);
-  const bracketSize = Math.pow(2, rounds);
+  const bracketSize = getBracketSize(t);
+  const rounds = Math.log2(bracketSize);
   t.matches = [];
 
   for (let r = 0; r < rounds; r++) {
     const matchesInRound = bracketSize / Math.pow(2, r + 1);
-    const stage = stageLabels[r] || "Round " + (r + 1);
+    const stage = r === rounds - 1 ? "Grand Final" : r === rounds - 2 ? "Semi Final" : "Qualifier";
     for (let m = 0; m < matchesInRound; m++) {
       const idx = r === 0 ? m * 2 : 0;
       const a = r === 0 ? (teams[idx]?.name || "TBD") : "TBD";
@@ -1164,7 +1197,11 @@ function initCreateTournamentPage() {
         winnerConfirmed: false
       },
       teams: firstTeamReady ? [{ id: uid(), name: `${user.name} Team`, members: names.map((n, i) => ({ name: n, role: roles[i] })) }] : [],
-      matches: [],
+      matches: generateFullBracket({
+        playerLimit: Math.max(2, Number(document.getElementById("playerLimit").value) || 32),
+        game,
+        teams: firstTeamReady ? [{ id: uid(), name: `${user.name} Team`, members: names.map((n, i) => ({ name: n, role: roles[i] })) }] : []
+      }).matches,
       createdAt: nowIso(),
       completedAt: null
     });
@@ -1776,6 +1813,7 @@ function renderDetail(t) {
             }
           }
           applyJoin(join);
+          syncTeamsToBracket(t);
           await saveTournament(t);
           renderAll();
           msg.className = "success";
@@ -1861,7 +1899,7 @@ function renderDetail(t) {
       </article>`;
     }).join("") : "<p>No teams yet.</p>";
     if (isAdmin) {
-      list.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); await saveTournament(t); renderAll(); });
+      list.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); syncTeamsToBracket(t); await saveTournament(t); renderAll(); });
       list.querySelectorAll("[data-remove-member]").forEach((b) => b.onclick = async () => {
         const team = t.teams.find((x) => x.id === b.dataset.removeMember);
         const member = team?.members?.[Number(b.dataset.member)];
@@ -1931,6 +1969,7 @@ function renderDetail(t) {
       if (!req) return;
       req.status = "approved";
       applyJoin(req);
+      syncTeamsToBracket(t);
       t.removedPlayers = t.removedPlayers.filter((p) => p.name !== req.name.toLowerCase());
       await saveTournament(t);
       renderAll();
@@ -2060,6 +2099,7 @@ function renderDetail(t) {
     }
     join.status = "approved";
     applyJoin(join);
+    syncTeamsToBracket(t);
     await saveTournament(t);
     renderAll();
     msg.className = "success";
@@ -2598,13 +2638,19 @@ function initSchedulePage() {
               ${isCreator ? `<button class="btn" id="generateBracketBtn" style="margin-bottom:2px">⚡ Generate Bracket</button>` : ""}
             </div>
           </div>
-          <div style="overflow-x:auto;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
-            ${renderTeamSlots(t)}
+          <div id="bracketContainer" class="b-container" style="margin-top:20px">
+            <div id="bracketInner" style="transform-origin:top left;transition:transform .2s ease">${renderTeamSlots(t)}</div>
           </div>
           <div style="margin-top:16px;padding:16px;border-radius:12px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));text-align:center">
             <p style="margin:0;color:var(--muted);font-size:.85rem">${teams.length} team${teams.length > 1 ? "s" : ""} registered — ${isCreator ? "click Generate Bracket to create matchups" : "waiting for the organizer to generate the bracket"}</p>
           </div>`;
         bindToolbar();
+        const container = document.getElementById("bracketContainer");
+        if (container) {
+          const n = getBracketSize(t);
+          const TOTAL_UNIT = 180;
+          container.style.height = `${Math.min(Math.max(n * TOTAL_UNIT + 80, 480), 900)}px`;
+        }
         if (isCreator) {
           document.getElementById("generateBracketBtn")?.addEventListener("click", async () => {
             try {
@@ -2621,10 +2667,14 @@ function initSchedulePage() {
         : "No tournaments have matches or teams yet.";
       root.innerHTML = `<div class="card" style="padding:20px">${buildToolbar()}</div>
         <div class="card" style="padding:24px;text-align:center;margin-top:16px"><p style="color:var(--muted);margin:0">${msg}</p></div>
-        <div style="margin-top:20px;overflow-x:auto;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
-          ${renderSkeletonBracket()}
+        <div id="bracketContainer" class="b-container" style="margin-top:20px">
+          <div id="bracketInner" style="transform-origin:top left;transition:transform .2s ease">${renderSkeletonBracket()}</div>
         </div>`;
       bindToolbar();
+      const container = document.getElementById("bracketContainer");
+      if (container) {
+        container.style.height = "900px";
+      }
       return;
     }
 
@@ -2648,6 +2698,15 @@ function initSchedulePage() {
       </div>`;
 
     bindToolbar();
+
+    const container = document.getElementById("bracketContainer");
+    if (container) {
+      const rounds = buildRounds(t);
+      const firstRoundCount = rounds[0]?.matches?.length || 0;
+      const TOTAL_UNIT = 180;
+      const totalHeight = firstRoundCount * TOTAL_UNIT;
+      container.style.height = `${Math.min(Math.max(totalHeight + 80, 480), 900)}px`;
+    }
 
     const inner = document.getElementById("bracketInner");
     const zoomLbl = document.getElementById("zoomLevel");

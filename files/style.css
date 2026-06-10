@@ -1782,9 +1782,10 @@ footer .footer-links a:hover {
 
 .b-container {
   min-width: 0;
-  min-height: 380px; /* Comfortable height to prevent clipping */
+  min-height: 480px; /* Comfortable height to prevent clipping */
+  max-height: 85vh; /* Limit height dynamically on screens */
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto; /* Allow scrolling vertically when it overflows */
   padding: 24px 16px;
   border-radius: 20px;
   background: color-mix(in srgb, var(--surface) 75%, transparent);
@@ -1792,7 +1793,7 @@ footer .footer-links a:hover {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   display: flex;
-  align-items: center; /* Center content vertically */
+  align-items: flex-start; /* Align to top to prevent top-offset clipping on scroll */
 }
 
 .b-view {
