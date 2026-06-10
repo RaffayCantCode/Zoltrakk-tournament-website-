@@ -1435,7 +1435,6 @@ function renderDetail(t) {
   t.shareToken = t.shareToken || uid();
   t.paidEntry = t.paidEntry || { enabled: false, entryFeeEth: "", verificationRequired: false };
   t.prize = t.prize || { verificationStatus: "none", claims: [], winnerConfirmed: false };
-  saveTournament(t);
   const teamCount = t.teams.length;
   const matchCount = t.matches.length;
 
@@ -1989,7 +1988,7 @@ function initSchedulePage() {
   const root = document.getElementById("scheduleRoot");
   if (!root) return;
 
-  const preselect = new URLSearchParams(location.search).get("tournament") || "";
+  let preselect = new URLSearchParams(location.search).get("tournament") || "";
 
   function getValidTournaments() {
     const all = getTournaments();
@@ -2041,11 +2040,11 @@ function initSchedulePage() {
     const rounds = buildRounds(t);
     if (!rounds.length) return "";
 
-    const MATCH_H = 76;
-    const GAP = 32;
+    const MATCH_H = 100;
+    const GAP = 28;
     const TOTAL_UNIT = MATCH_H + GAP;
-    const CONNECTOR_W = 36;
-    const ROUND_W = 240;
+    const CONNECTOR_W = 44;
+    const ROUND_W = 280;
 
     function matchCenterY(mi, ri) {
       return mi * Math.pow(2, ri) * TOTAL_UNIT + (Math.pow(2, ri) - 1) * TOTAL_UNIT / 2 + MATCH_H / 2;
@@ -2053,6 +2052,22 @@ function initSchedulePage() {
 
     const firstRoundCount = rounds[0].matches.length;
     const totalHeight = firstRoundCount * TOTAL_UNIT;
+
+    function statusClass(m) {
+      if (m.status === "live") return "b-live";
+      if (m.status === "completed") return "b-completed";
+      if (m.status === "scheduled" && m.date) {
+        const d = new Date(m.date + "T" + (m.time || "00:00"));
+        if (d > new Date()) return "b-upcoming";
+      }
+      return "";
+    }
+
+    function statusLabel(m) {
+      if (m.status === "live") return "LIVE";
+      if (m.status === "completed") return "Completed";
+      return "Scheduled";
+    }
 
     function connectorSVG(leftRound) {
       const leftMatches = leftRound.matches;
@@ -2074,22 +2089,28 @@ function initSchedulePage() {
 
     function matchCard(match, mi, ri) {
       const y = matchCenterY(mi, ri) - MATCH_H / 2;
-      const isCompleted = match.status === "completed";
+      const sc = statusClass(match);
+      const sl = statusLabel(match);
       const isLive = match.status === "live";
-      return `<div class="b-match" data-encoded='${encodeURIComponent(JSON.stringify(match))}' data-tournament='${esc(t.id)}' style="top:${y}px;height:${MATCH_H}px">
+      const winner = match.winner || "";
+      const aWin = winner === match.a;
+      const bWin = winner === match.b;
+      return `<div class="b-match ${sc}" data-encoded='${encodeURIComponent(JSON.stringify(match))}' data-tournament='${esc(t.id)}' style="top:${y}px;height:${MATCH_H}px">
         <div class="b-match-teams">
-          <div class="b-team ${match.winner && match.winner === match.a ? "b-winner" : ""}">
+          <div class="b-team ${aWin ? "b-winner" : ""} ${winner && !aWin ? "b-loser" : ""}">
+            <span class="b-team-indicator"></span>
             <span class="b-team-name">${esc(match.a)}</span>
-            ${match.winner === match.a ? '<span class="b-crown">👑</span>' : ""}
+            ${aWin ? '<span class="b-crown">👑</span>' : ""}
           </div>
           <div class="b-vs">VS</div>
-          <div class="b-team ${match.winner && match.winner === match.b ? "b-winner" : ""}">
+          <div class="b-team ${bWin ? "b-winner" : ""} ${winner && !bWin ? "b-loser" : ""}">
+            <span class="b-team-indicator"></span>
             <span class="b-team-name">${esc(match.b)}</span>
-            ${match.winner === match.b ? '<span class="b-crown">👑</span>' : ""}
+            ${bWin ? '<span class="b-crown">👑</span>' : ""}
           </div>
         </div>
         <div class="b-match-footer">
-          ${isLive ? '<span class="b-status b-live">LIVE</span>' : isCompleted ? '<span class="b-status b-completed">Completed</span>' : '<span class="b-status b-scheduled">Upcoming</span>'}
+          <span class="b-status ${isLive ? "b-live" : winner ? "b-completed" : "b-scheduled"}">${isLive ? '<span class="b-status-dot"></span>' : ""}${sl}</span>
           <span class="b-match-time">${match.date || "TBD"}${match.time ? " " + match.time : ""}</span>
         </div>
       </div>`;
@@ -2106,12 +2127,12 @@ function initSchedulePage() {
       </div>`;
     }
 
-    let html = `<div class="b-view"><div class="bracket" style="height:${totalHeight}px">`;
+    let html = `<div class="b-view"><div class="bracket">`;
 
     rounds.forEach((round, ri) => {
       html += `<div class="b-round" style="width:${ROUND_W}px">
         <div class="b-round-label">${round.label}</div>
-        <div class="b-round-matches" style="position:relative;flex:1">
+        <div class="b-round-matches" style="position:relative;flex:1;height:${totalHeight}px">
           ${round.matches.map((m, mi) => matchCard(m, mi, ri)).join("")}
         </div>
       </div>`;
@@ -2146,7 +2167,7 @@ function initSchedulePage() {
     const rounds = buildRounds(demo);
     if (!rounds.length) return "";
 
-    const MATCH_H = 76, GAP = 32, TOTAL_UNIT = MATCH_H + GAP, CONNECTOR_W = 36, ROUND_W = 240;
+    const MATCH_H = 100, GAP = 28, TOTAL_UNIT = MATCH_H + GAP, CONNECTOR_W = 44, ROUND_W = 280;
 
     function matchCenterY(mi, ri) {
       return mi * Math.pow(2, ri) * TOTAL_UNIT + (Math.pow(2, ri) - 1) * TOTAL_UNIT / 2 + MATCH_H / 2;
@@ -2155,7 +2176,7 @@ function initSchedulePage() {
     const firstRoundCount = rounds[0].matches.length;
     const totalHeight = firstRoundCount * TOTAL_UNIT;
 
-    function connectorSVG(leftRound) { // same as renderBracket
+    function connectorSVG(leftRound) {
       const leftMatches = leftRound.matches;
       if (leftMatches.length < 2) return "";
       const h = totalHeight;
@@ -2173,23 +2194,25 @@ function initSchedulePage() {
       return `<svg width="${CONNECTOR_W}" height="${h}" class="b-connector-svg">${lines.join("")}</svg>`;
     }
 
-    let html = `<div class="b-view"><div style="text-align:center;margin-bottom:12px"><span class="tag" style="font-size:.7rem;text-transform:uppercase;letter-spacing:1px;opacity:.6">— Preview — Bracket will auto-generate from your matches</span></div><div class="bracket" style="height:${totalHeight}px">`;
+    let html = `<div class="b-view"><div style="text-align:center;margin-bottom:12px"><span class="tag" style="font-size:.7rem;text-transform:uppercase;letter-spacing:1px;opacity:.6">— Preview — Bracket will auto-generate from your matches</span></div><div class="bracket">`;
 
     rounds.forEach((round, ri) => {
       html += `<div class="b-round ${ri > 0 ? "b-round-skeleton" : ""}" style="width:${ROUND_W}px">
         <div class="b-round-label" style="opacity:.4">${round.label}</div>
-        <div class="b-round-matches" style="position:relative;flex:1">
+        <div class="b-round-matches" style="position:relative;flex:1;height:${totalHeight}px">
           ${round.matches.map((m, mi) => {
             const y = matchCenterY(mi, ri) - MATCH_H / 2;
             const isCompleted = m.status === "completed";
             return `<div class="b-match b-match-skeleton" style="top:${y}px;height:${MATCH_H}px;pointer-events:none">
               <div class="b-match-teams">
                 <div class="b-team ${m.winner === m.a ? "b-winner" : ""}">
+                  <span class="b-team-indicator"></span>
                   <span class="b-team-name">${esc(m.a)}</span>
                   ${m.winner === m.a ? '<span class="b-crown">👑</span>' : ""}
                 </div>
                 <div class="b-vs">VS</div>
                 <div class="b-team ${m.winner === m.b ? "b-winner" : ""}">
+                  <span class="b-team-indicator"></span>
                   <span class="b-team-name">${esc(m.b)}</span>
                   ${m.winner === m.b ? '<span class="b-crown">👑</span>' : ""}
                 </div>
@@ -2209,8 +2232,8 @@ function initSchedulePage() {
     });
 
     html += `</div>
-      <div class="b-champion b-champion-skeleton" style="align-self:center;opacity:.5">
-        <div class="b-champion-crown" style="filter:none">🏆</div>
+      <div class="b-champion b-champion-skeleton">
+        <div class="b-champion-crown">🏆</div>
         <div class="b-champion-name">Champion</div>
         <div class="b-champion-label">Winner</div>
       </div>
@@ -2224,7 +2247,7 @@ function initSchedulePage() {
     if (teams.length < 1) return "";
     const n = Math.max(Math.pow(2, Math.ceil(Math.log2(teams.length))), 2);
     const half = n / 2;
-    const MATCH_H = 76, GAP = 32, TOTAL_UNIT = MATCH_H + GAP, ROUND_W = 240, CONNECTOR_W = 36;
+    const MATCH_H = 100, GAP = 28, TOTAL_UNIT = MATCH_H + GAP, ROUND_W = 280, CONNECTOR_W = 44;
 
     function teamCard(name, idx) {
       const y = idx * TOTAL_UNIT + (TOTAL_UNIT - MATCH_H) / 2;
@@ -2232,6 +2255,7 @@ function initSchedulePage() {
       return `<div class="b-match ${isTbd ? "b-match-tbd" : ""}" style="top:${y}px;height:${MATCH_H}px;pointer-events:none">
         <div class="b-match-teams" style="justify-content:center;text-align:center">
           <div class="b-team" style="justify-content:center">
+            <span class="b-team-indicator" style="${isTbd ? "background:var(--muted)" : ""}"></span>
             <span class="b-team-name" style="${isTbd ? "color:var(--muted);font-style:italic" : ""}">${isTbd ? "Open Slot" : esc(name)}</span>
           </div>
         </div>
@@ -2242,12 +2266,12 @@ function initSchedulePage() {
       <div style="text-align:center;margin-bottom:8px">
         <span class="tag" style="font-size:.65rem;text-transform:uppercase;letter-spacing:1px;background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--text)">${teams.length} / ${n} Slots Filled</span>
       </div>
-      <div class="bracket" style="height:${n * TOTAL_UNIT}px">`;
+      <div class="bracket">`;
 
     // Round 1 - team slots
     html += `<div class="b-round" style="width:${ROUND_W}px">
       <div class="b-round-label">Qualifier</div>
-      <div class="b-round-matches" style="position:relative;flex:1">
+      <div class="b-round-matches" style="position:relative;flex:1;height:${n * TOTAL_UNIT}px">
         ${Array.from({ length: n }, (_, i) => teamCard(teams[i]?.name || "TBD", i)).join("")}
       </div>
     </div>`;
@@ -2278,7 +2302,7 @@ function initSchedulePage() {
       const label = roundIdx === 1 ? "Semi Final" : roundIdx === 2 ? "Grand Final" : "Round " + (roundIdx + 1);
       html += `<div class="b-round b-round-skeleton" style="width:${ROUND_W}px">
         <div class="b-round-label" style="opacity:.3">${label}</div>
-        <div class="b-round-matches" style="position:relative;flex:1">
+        <div class="b-round-matches" style="position:relative;flex:1;height:${n * TOTAL_UNIT}px">
           ${Array.from({ length: remaining }, (_, i) => {
             const y = i * Math.pow(2, roundIdx) * TOTAL_UNIT + (Math.pow(2, roundIdx) - 1) * TOTAL_UNIT / 2;
             return `<div class="b-match b-match-skeleton" style="top:${y}px;height:${MATCH_H}px;pointer-events:none">
@@ -2311,8 +2335,8 @@ function initSchedulePage() {
     }
 
     html += `</div>
-      <div class="b-champion b-champion-skeleton" style="align-self:center;opacity:.4">
-        <div class="b-champion-crown" style="filter:none">🏆</div>
+      <div class="b-champion b-champion-skeleton">
+        <div class="b-champion-crown">🏆</div>
         <div class="b-champion-label">Champion</div>
       </div>
     </div>`;
@@ -2421,7 +2445,6 @@ function initSchedulePage() {
   }
 
   function render() {
-    const tournaments = getValidTournaments();
     const selectedId = document.getElementById("scheduleTournamentSelect")?.value || "";
     const t = selectedId ? getTournaments().find(x => x.id === selectedId) : null;
 
@@ -2503,7 +2526,7 @@ function initSchedulePage() {
           </div>
         </div>
       </div>
-      <div id="bracketContainer" style="overflow-x:auto;overflow-y:hidden;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
+      <div id="bracketContainer" class="b-container">
         <div id="bracketInner" style="transform-origin:top left;transition:transform .2s ease">${bracketHtml}</div>
       </div>`;
 
@@ -2547,6 +2570,7 @@ function initSchedulePage() {
   function bindToolbar() {
     document.getElementById("scheduleTournamentSelect")?.addEventListener("change", (e) => {
       const val = e.target.value;
+      preselect = val;
       if (val) {
         history.replaceState(null, "", "?tournament=" + val);
       } else {
