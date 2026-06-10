@@ -2605,6 +2605,11 @@ function initSchedulePage() {
     const selectedId = document.getElementById("scheduleTournamentSelect")?.value || preselect || "";
     const t = selectedId ? getTournaments().find(x => x.id === selectedId) : null;
 
+    if (t && (!t.matches || t.matches.length === 0)) {
+      syncTeamsToBracket(t);
+      saveTournament(t).catch(console.error);
+    }
+
     if (!getTournaments().length) {
       root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0">No tournaments exist yet. <a href="create.html">Create one</a> to get started.</p></div>
         <div style="margin-top:20px;overflow-x:auto;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
