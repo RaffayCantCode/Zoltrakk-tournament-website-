@@ -68,5 +68,9 @@ CREATE POLICY "Anyone can view user players"
   ON user_players FOR SELECT
   USING (true);
 
+-- 6) Add UNIQUE constraint to user_players(user_id) if not already present
+ALTER TABLE user_players DROP CONSTRAINT IF EXISTS user_players_user_id_key;
+ALTER TABLE user_players ADD CONSTRAINT user_players_user_id_key UNIQUE (user_id);
+
 -- Verify
 SELECT schemaname, tablename, policyname, cmd FROM pg_policies WHERE tablename IN ('tournaments', 'leaderboard_entries', 'user_players') ORDER BY tablename, policyname;

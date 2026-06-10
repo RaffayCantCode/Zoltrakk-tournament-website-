@@ -460,13 +460,33 @@ async function saveUserPlayers(data) {
   const withIds = data.map((p, i) => ({ ...p, id: p.id || uid() }));
   _userPlayersCache = withIds;
   try {
-    await supabaseClient
+    const { data: existing, error: fetchError } = await supabaseClient
       .from("user_players")
-      .upsert({
-        user_id: user.id,
-        data: withIds,
-        updated_at: nowIso()
-      }, { onConflict: "user_id" });
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    if (existing) {
+      const { error: updateError } = await supabaseClient
+        .from("user_players")
+        .update({
+          data: withIds,
+          updated_at: nowIso()
+        })
+        .eq("id", existing.id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabaseClient
+        .from("user_players")
+        .insert({
+          user_id: user.id,
+          data: withIds,
+          updated_at: nowIso()
+        });
+      if (insertError) throw insertError;
+    }
   } catch (err) {
     console.error("Failed to save user players:", err);
   }
@@ -1096,6 +1116,15 @@ function paidEntrySummary(t) {
 function playersForDisplay() {
   const allSquadPlayers = getAllPlayers();
   const merged = [...allSquadPlayers];
+  
+  // Merge current user's local squad players first for instant rendering
+  const myPlayers = getUserPlayers();
+  for (const mp of myPlayers) {
+    if (!merged.some(p => p.name.toLowerCase() === mp.name.toLowerCase())) {
+      merged.push({ ...mp, userId: _currentUserCache?.id });
+    }
+  }
+
   for (const mp of MOCK_PLAYERS) {
     if (!merged.some(p => p.name.toLowerCase() === mp.name.toLowerCase())) {
       merged.push(mp);
@@ -1138,8 +1167,10 @@ async function initPlayersPage() {
         <a class="btn" href="login.html">Go to Login</a>
         <a class="btn alt" href="signup.html">Create Account</a>
       </div>`;
-    grid.innerHTML = `<div class="empty-state"><p>Login to view and manage your squad.</p></div>`;
-    return;
+    const listEl = document.getElementById("participantsList");
+    if (listEl) listEl.style.display = "none";
+    const totalP = document.querySelector("#totalRegistered")?.parentElement;
+    if (totalP) totalP.style.display = "none";
   }
 
   const list = document.getElementById("participantsList");
@@ -1181,7 +1212,7 @@ async function initPlayersPage() {
     filtered = filtered.sort((a, b) => (rankOrder[a.rank] || 99) - (rankOrder[b.rank] || 99));
 
     if (!filtered.length) {
-      grid.innerHTML = `<div class="empty-state"><p>No players in your squad yet. Use the form to register up to 10 players.</p></div>`;
+      grid.innerHTML = `<div class="empty-state"><p>No registered players found matching your filters.</p></div>`;
       return;
     }
 
@@ -1194,9 +1225,9 @@ async function initPlayersPage() {
   };
 
   ["searchPlayer", "filterGame", "filterRank"].forEach((id) => document.getElementById(id)?.addEventListener("input", renderGrid));
-  renderGrid();
 
   const renderParticipants = () => {
+    if (!user) return;
     const all = getUserPlayers();
     total.textContent = all.length;
     if (!all.length) {
@@ -1220,38 +1251,42 @@ async function initPlayersPage() {
     renderGrid();
   };
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    msg.textContent = "";
-    msg.className = "error";
-    const name = document.getElementById("regName").value.trim();
-    const game = document.getElementById("regGame").value;
-    const rank = document.getElementById("regRank")?.value || "";
-    if (!name) return void (msg.textContent = "Player name is required.");
-    const all = getUserPlayers();
-    if (all.length >= 10) return void (msg.textContent = "Squad limit reached (10 players per account).");
-    if (all.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      return void (msg.textContent = "A player with this name is already in your squad.");
-    }
-    try {
-      const image = await readOptionalImage(imageInput);
-      all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
-      await saveUserPlayers(all);
-      await loadAllPlayers();
-      form.reset();
-      if (imagePreview) {
-        imagePreview.classList.add("hidden");
-        imagePreview.innerHTML = "";
-      }
-      msg.className = "success";
-      msg.textContent = `Player "${name}" added to your squad.`;
-      renderParticipants();
-    } catch (err) {
-      msg.textContent = err.message;
-    }
-  });
+  if (user) {
+    renderParticipants();
 
-  renderParticipants();
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      msg.className = "error";
+      const name = document.getElementById("regName").value.trim();
+      const game = document.getElementById("regGame").value;
+      const rank = document.getElementById("regRank")?.value || "";
+      if (!name) return void (msg.textContent = "Player name is required.");
+      const all = getUserPlayers();
+      if (all.length >= 10) return void (msg.textContent = "Squad limit reached (10 players per account).");
+      if (all.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+        return void (msg.textContent = "A player with this name is already in your squad.");
+      }
+      try {
+        const image = await readOptionalImage(imageInput);
+        all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
+        await saveUserPlayers(all);
+        await loadAllPlayers();
+        form.reset();
+        if (imagePreview) {
+          imagePreview.classList.add("hidden");
+          imagePreview.innerHTML = "";
+        }
+        msg.className = "success";
+        msg.textContent = `Player "${name}" added to your squad.`;
+        renderParticipants();
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    });
+  } else {
+    renderGrid();
+  }
 }
 
 function initSignupPage() {
