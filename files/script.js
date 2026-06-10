@@ -673,6 +673,16 @@ function normalizeHeaderNav() {
   });
   panelClose?.addEventListener("click", closePanel);
   overlay.addEventListener("click", closePanel);
+
+  // Hide DB Schema link in footer for non-admins
+  const schemaLinks = document.querySelectorAll('footer .footer-links a[href="schema.html"]');
+  schemaLinks.forEach(link => {
+    if (!user || !user.is_admin) {
+      link.style.display = "none";
+    } else {
+      link.style.display = "";
+    }
+  });
 }
 
 function initHomeStats() {
@@ -1879,7 +1889,7 @@ function renderDetail(t) {
       const req = team?.requests?.find((r) => r.id === b.dataset.reqId);
       if (!team || !req || req.status !== "pending") return;
       req.status = "approved";
-      team.members.push({ name: req.playerName, role: "Member" });
+      team.members.push({ name: req.playerName, role: "Member", userId: req.playerId });
       await saveTournament(t);
       renderAll();
     });
@@ -1938,12 +1948,16 @@ function renderDetail(t) {
   renderAll();
 
   const applyJoin = (join) => {
-    const paymentMeta = join.payment ? { walletAddress: join.walletAddress, paymentTx: join.payment.txHash, paymentStatus: join.paymentStatus } : {};
+    const paymentMeta = (join.walletAddress || join.paymentStatus || join.payment) ? {
+      walletAddress: join.walletAddress || "",
+      paymentTx: join.signature || join.payment?.txHash || "",
+      paymentStatus: join.paymentStatus || ""
+    } : {};
     if (join.mode === "create") {
-      t.teams.push({ id: uid(), name: join.teamName, joinType: join.teamJoinType || "open", requests: [], members: [{ name: join.name, role: "Captain", ...paymentMeta }] });
+      t.teams.push({ id: uid(), name: join.teamName, joinType: join.teamJoinType || "open", requests: [], members: [{ name: join.name, role: "Captain", userId: join.userId, ...paymentMeta }] });
     } else {
       const team = t.teams.find((x) => x.id === join.teamId);
-      if (team) team.members.push({ name: join.name, role: "Member", ...paymentMeta });
+      if (team) team.members.push({ name: join.name, role: "Member", userId: join.userId, ...paymentMeta });
     }
   };
 
@@ -1953,12 +1967,45 @@ function renderDetail(t) {
     const joinBtn = document.getElementById("joinBtn");
     msg.textContent = "";
     msg.className = "error";
+    const user = getCurrentUser();
+    if (!user) {
+      msg.innerHTML = `You must be logged in to join a tournament. <a href="login.html">Log in here</a> or <a href="signup.html">sign up</a>.`;
+      return;
+    }
     const name = (document.getElementById("joinerName").value || "").trim();
     if (!name) return void (msg.textContent = "Enter your name.");
+
+    // Restrict one team/registration per account
+    const nameLower = name.toLowerCase();
+    const userNameLower = (user.name || "").toLowerCase();
+
+    const alreadyInTeam = t.teams.some(team =>
+      team.members.some(m => m.userId === user.id || (m.name && m.name.toLowerCase() === userNameLower) || (m.name && m.name.toLowerCase() === nameLower))
+    );
+    if (alreadyInTeam) {
+      return void (msg.textContent = "You (or this name) have already joined a team in this tournament.");
+    }
+
+    const hasPendingJoinReq = t.joinRequests.some(r =>
+      r.status === "pending" && (r.userId === user.id || (r.name && r.name.toLowerCase() === userNameLower) || (r.name && r.name.toLowerCase() === nameLower))
+    );
+    if (hasPendingJoinReq) {
+      return void (msg.textContent = "You already have a pending registration request for this tournament.");
+    }
+
+    const hasPendingTeamReq = t.teams.some(team =>
+      (team.requests || []).some(r =>
+        r.status === "pending" && (r.playerId === user.id || (r.playerName && r.playerName.toLowerCase() === userNameLower) || (r.playerName && r.playerName.toLowerCase() === nameLower))
+      )
+    );
+    if (hasPendingTeamReq) {
+      return void (msg.textContent = "You already have a pending request to join a team in this tournament.");
+    }
+
     if (participantTotal(t) >= (t.playerLimit || 32)) return void (msg.textContent = "Player limit reached.");
     const blocked = t.removedPlayers.some((p) => p.name === name.toLowerCase());
     if (blocked) return void (msg.textContent = "This player was removed and needs admin approval before rejoining.");
-    const join = { id: uid(), name, mode: document.getElementById("joinMode").value, status: "pending", createdAt: nowIso() };
+    const join = { id: uid(), name, mode: document.getElementById("joinMode").value, status: "pending", createdAt: nowIso(), userId: user.id };
     if (join.mode === "create") {
       const tn = (document.getElementById("newTeamName").value || "").trim();
       if (!tn) return void (msg.textContent = "Enter team name.");
@@ -2096,8 +2143,8 @@ function initSchedulePage() {
     const rounds = buildRounds(t);
     if (!rounds.length) return "";
 
-    const MATCH_H = 100;
-    const GAP = 28;
+    const MATCH_H = 140;
+    const GAP = 40;
     const TOTAL_UNIT = MATCH_H + GAP;
     const CONNECTOR_W = 44;
     const ROUND_W = 280;
@@ -2223,7 +2270,7 @@ function initSchedulePage() {
     const rounds = buildRounds(demo);
     if (!rounds.length) return "";
 
-    const MATCH_H = 100, GAP = 28, TOTAL_UNIT = MATCH_H + GAP, CONNECTOR_W = 44, ROUND_W = 280;
+    const MATCH_H = 140, GAP = 40, TOTAL_UNIT = MATCH_H + GAP, CONNECTOR_W = 44, ROUND_W = 280;
 
     function matchCenterY(mi, ri) {
       return mi * Math.pow(2, ri) * TOTAL_UNIT + (Math.pow(2, ri) - 1) * TOTAL_UNIT / 2 + MATCH_H / 2;
@@ -2303,7 +2350,7 @@ function initSchedulePage() {
     if (teams.length < 1) return "";
     const n = Math.max(Math.pow(2, Math.ceil(Math.log2(teams.length))), 2);
     const half = n / 2;
-    const MATCH_H = 100, GAP = 28, TOTAL_UNIT = MATCH_H + GAP, ROUND_W = 280, CONNECTOR_W = 44;
+    const MATCH_H = 140, GAP = 40, TOTAL_UNIT = MATCH_H + GAP, ROUND_W = 280, CONNECTOR_W = 44;
 
     function teamCard(name, idx) {
       const y = idx * TOTAL_UNIT + (TOTAL_UNIT - MATCH_H) / 2;
@@ -2651,6 +2698,7 @@ function initSchedulePage() {
   }
 
   render();
+  subscribeToTournaments(render);
 }
 
 function initMyTournamentsPage() {
@@ -2810,6 +2858,7 @@ function initAdminPage() {
           <button class="btn ${activeTab === "tournaments" ? "" : "alt"}" onclick="location.href='admin.html?tab=tournaments'">Tournaments (${allTours.length})</button>
           <button class="btn ${activeTab === "messages" ? "" : "alt"}" onclick="location.href='admin.html?tab=messages'">Messages (${allMsgs.length})</button>
           <button class="btn ${activeTab === "leaderboard" ? "" : "alt"}" onclick="location.href='admin.html?tab=leaderboard'">Leaderboard (${allLb.length})</button>
+          <button class="btn ${activeTab === "schema" ? "" : "alt"}" onclick="location.href='admin.html?tab=schema'">DB Schema</button>
         </div>
         <div id="adminTabContent"></div>`;
 
@@ -3036,6 +3085,142 @@ function initAdminPage() {
             location.reload();
           } catch (err) { msg.textContent = "Failed to save: " + err.message; }
         };
+      }
+
+      else if (activeTab === "schema") {
+        content.innerHTML = `
+          <div class="card" style="padding:20px;margin-bottom:16px">
+            <h3 style="margin:0 0 10px;font-size:1.1rem;text-transform:uppercase;letter-spacing:1px">Relational Database Design</h3>
+            <p style="color:var(--muted);font-size:.9rem;margin-bottom:20px">
+              Below are the 5 core tables that store all relational data for Zoltrakk Arena, along with their columns and database CRUD integration mappings.
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:16px">
+              <!-- Table 1 -->
+              <div class="card" style="padding:16px;background:color-mix(in srgb, var(--surface-2) 30%, transparent);border:1px solid var(--border)">
+                <h4 style="color:var(--accent);margin:0 0 8px">1. profiles (Users)</h4>
+                <p style="font-size:.8rem;color:var(--muted);margin:0 0 12px">Extends authentication with custom preferences, stats and rosters.</p>
+                <div style="font-family:monospace;font-size:.8rem;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:12px;border:1px solid var(--border)">
+                  <strong>Columns:</strong><br>
+                  id (UUID, PK)<br>
+                  first_name (TEXT)<br>
+                  last_name (TEXT)<br>
+                  age (INT)<br>
+                  avatar_url (TEXT)<br>
+                  theme_pref (TEXT)<br>
+                  is_admin (BOOL)<br>
+                  best_game (TEXT)<br>
+                  rank (TEXT)<br>
+                  looking_for (TEXT)<br>
+                  teammates (JSONB)<br>
+                  created_at / updated_at
+                </div>
+                <div style="font-size:.8rem">
+                  <strong>CRUD Mapping:</strong>
+                  <ul style="margin:4px 0 0;padding-left:16px">
+                    <li>Create: Auto-trigger on signup</li>
+                    <li>Read: Profiles / Leaderboard / Admin</li>
+                    <li>Update: Theme settings / Edit profile</li>
+                    <li>Delete: Delete user (Admin)</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Table 2 -->
+              <div class="card" style="padding:16px;background:color-mix(in srgb, var(--surface-2) 30%, transparent);border:1px solid var(--border)">
+                <h4 style="color:var(--accent);margin:0 0 8px">2. tournaments (Brackets)</h4>
+                <p style="font-size:.8rem;color:var(--muted);margin:0 0 12px">Stores tournament schedules, registered teams and matches.</p>
+                <div style="font-family:monospace;font-size:.8rem;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:12px;border:1px solid var(--border)">
+                  <strong>Columns:</strong><br>
+                  id (TEXT, PK)<br>
+                  owner_id (UUID, FK)<br>
+                  data (JSONB: brackets, teams)<br>
+                  created_at / updated_at
+                </div>
+                <div style="font-size:.8rem">
+                  <strong>CRUD Mapping:</strong>
+                  <ul style="margin:4px 0 0;padding-left:16px">
+                    <li>Create: Host tournament builder</li>
+                    <li>Read: Schedule / Browse / Dynamic Details</li>
+                    <li>Update: Match results / Squad joins</li>
+                    <li>Delete: Delete tournament (Owner/Admin)</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Table 3 -->
+              <div class="card" style="padding:16px;background:color-mix(in srgb, var(--surface-2) 30%, transparent);border:1px solid var(--border)">
+                <h4 style="color:var(--accent);margin:0 0 8px">3. user_players (Squads)</h4>
+                <p style="font-size:.8rem;color:var(--muted);margin:0 0 12px">Personal squad rosters managed by users.</p>
+                <div style="font-family:monospace;font-size:.8rem;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:12px;border:1px solid var(--border)">
+                  <strong>Columns:</strong><br>
+                  id (UUID, PK)<br>
+                  user_id (UUID, FK)<br>
+                  data (JSONB: customized player details)<br>
+                  created_at / updated_at
+                </div>
+                <div style="font-size:.8rem">
+                  <strong>CRUD Mapping:</strong>
+                  <ul style="margin:4px 0 0;padding-left:16px">
+                    <li>Create: Squad Registry registration</li>
+                    <li>Read: Players Gallery / Signup select</li>
+                    <li>Update: Modify squad parameters</li>
+                    <li>Delete: Delete squad member</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Table 4 -->
+              <div class="card" style="padding:16px;background:color-mix(in srgb, var(--surface-2) 30%, transparent);border:1px solid var(--border)">
+                <h4 style="color:var(--accent);margin:0 0 8px">4. contact_messages (Tickets)</h4>
+                <p style="font-size:.8rem;color:var(--muted);margin:0 0 12px">Support requests sent via contact page form.</p>
+                <div style="font-family:monospace;font-size:.8rem;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:12px;border:1px solid var(--border)">
+                  <strong>Columns:</strong><br>
+                  id (UUID, PK)<br>
+                  name (TEXT)<br>
+                  email (TEXT)<br>
+                  dob (TEXT)<br>
+                  message (TEXT)<br>
+                  created_at
+                </div>
+                <div style="font-size:.8rem">
+                  <strong>CRUD Mapping:</strong>
+                  <ul style="margin:4px 0 0;padding-left:16px">
+                    <li>Create: Contact form submit</li>
+                    <li>Read: Admin support inbox</li>
+                    <li>Update: N/A (read-only audit trail)</li>
+                    <li>Delete: Admin deletes message</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Table 5 -->
+              <div class="card" style="padding:16px;background:color-mix(in srgb, var(--surface-2) 30%, transparent);border:1px solid var(--border)">
+                <h4 style="color:var(--accent);margin:0 0 8px">5. leaderboard_entries (Standings)</h4>
+                <p style="font-size:.8rem;color:var(--muted);margin:0 0 12px">Dynamic global squad stats and score ranking.</p>
+                <div style="font-family:monospace;font-size:.8rem;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:12px;border:1px solid var(--border)">
+                  <strong>Columns:</strong><br>
+                  id (UUID, PK)<br>
+                  team_name (TEXT)<br>
+                  game (TEXT)<br>
+                  wins / losses (INT)<br>
+                  rank (INT)<br>
+                  notes (TEXT)<br>
+                  updated_by (UUID, FK)<br>
+                  created_at / updated_at
+                </div>
+                <div style="font-size:.8rem">
+                  <strong>CRUD Mapping:</strong>
+                  <ul style="margin:4px 0 0;padding-left:16px">
+                    <li>Create: Admin adds squad record</li>
+                    <li>Read: Global standings view / Admin view</li>
+                    <li>Update: Admin modifies stats / wins</li>
+                    <li>Delete: Admin removes standings record</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
       }
     } catch (err) {
       root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
@@ -3408,6 +3593,25 @@ function initContactPage() {
   const status = document.getElementById("contactStatus");
   if (!form || !status) return;
 
+  // Initialize Leaflet Map API integration
+  const mapContainer = document.getElementById("map");
+  if (mapContainer && typeof L !== "undefined") {
+    try {
+      const map = L.map("map").setView([33.7154, 73.0245], 15);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      L.marker([33.7154, 73.0245])
+        .addTo(map)
+        .bindPopup("<b>Zoltrakk Arena Support Desk</b><br>Air University Campus, Islamabad, Pakistan")
+        .openPopup();
+    } catch (err) {
+      console.error("Leaflet initialization error:", err);
+    }
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     status.className = "error";
@@ -3438,6 +3642,50 @@ function initContactPage() {
       console.error("Contact save error:", err);
     }
   });
+}
+
+// ── Schema Page Authorization ──────────────────────────────────
+function initSchemaPage() {
+  const root = document.getElementById("schemaRoot");
+  if (!root) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    root.innerHTML = `<div class="container" style="padding-top:40px;padding-bottom:40px"><div class="card" style="padding:32px;text-align:center">
+      <h2 class="error" style="margin:0 0 12px">Login Required</h2>
+      <p style="color:var(--muted);margin:0 0 20px">Please log in as an administrator to access the database schema.</p>
+      <a class="btn" href="login.html">Login</a>
+    </div></div>`;
+    root.style.display = "block";
+    return;
+  }
+
+  const originalHtml = root.innerHTML;
+  showLoading(root, "Verifying database access permissions...");
+  root.style.display = "block";
+
+  (async () => {
+    try {
+      const { data: profile } = await supabaseClient
+        .from("profiles").select("is_admin").eq("id", user.id).single();
+      if (!profile || profile.is_admin !== true) {
+        root.innerHTML = `<div class="container" style="padding-top:40px;padding-bottom:40px"><div class="card" style="padding:32px;text-align:center">
+          <h2 class="error" style="margin:0 0 12px">Access Denied</h2>
+          <p style="color:var(--muted);margin:0 0 20px">Only administrators can access this database schema page.</p>
+          <a class="btn" href="index.html">Back to Home</a>
+        </div></div>`;
+        return;
+      }
+      
+      root.innerHTML = originalHtml;
+    } catch (err) {
+      root.innerHTML = `<div class="container" style="padding-top:40px;padding-bottom:40px"><div class="card" style="padding:32px;text-align:center">
+        <h2 class="error" style="margin:0 0 12px">Verification Failed</h2>
+        <p style="color:var(--muted);margin:0 0 20px">${esc(err.message)}</p>
+        <a class="btn" href="index.html">Back to Home</a>
+      </div></div>`;
+    }
+  })();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -3477,4 +3725,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initLeaderboardPage();
   initProfilePage();
   initAdminPage();
+  initSchemaPage();
 });

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Schema - Zoltrakk Arena</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #schemaRoot { display: none; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo-wrap"><a href="index.html" class="logo-text">Zoltrakk Arena</a></div>
+</header>
+
+<section id="schemaRoot">
+  <div class="container">
+    <div class="card" style="padding:32px;margin-bottom:24px">
+      <h2>Relational Database Schema</h2>
+      <p style="color:var(--muted);margin-bottom:24px">This application utilizes a PostgreSQL relational database hosted on Supabase. The database contains <strong>5 core tables</strong> designed to store user data, tournaments, players, contact requests, and rankings.</p>
+
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <!-- Table 1 -->
+        <div style="border:1px solid var(--border);border-radius:16px;padding:20px;background:color-mix(in srgb, var(--surface-2) 30%, transparent)">
+          <h3 style="margin:0 0 10px;color:var(--accent)">1. profiles (User Profile Data)</h3>
+          <p style="font-size:.9rem;margin:0 0 14px">Extends Supabase Auth users table with specific profiles and settings.</p>
+          <div style="font-family:monospace;font-size:.85rem;color:var(--muted);margin-bottom:12px;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:10px;border-radius:8px">
+            <strong>Columns:</strong><br>
+            - id: UUID (Primary Key, references auth.users)<br>
+            - first_name: TEXT (Not Null)<br>
+            - last_name: TEXT (Not Null)<br>
+            - age: INTEGER<br>
+            - avatar_url: TEXT (Default '')<br>
+            - theme_pref: TEXT (Default 'light')<br>
+            - is_admin: BOOLEAN (Default FALSE)<br>
+            - best_game: TEXT<br>
+            - rank: TEXT<br>
+            - looking_for: TEXT (Default 'both')<br>
+            - teammates: JSONB (Default '[]')<br>
+            - created_at: TIMESTAMPTZ (Default NOW())<br>
+            - updated_at: TIMESTAMPTZ (Default NOW())
+          </div>
+          <div style="font-size:.9rem"><strong>CRUD Integration:</strong>
+            <ul>
+              <li><strong>Create:</strong> Triggered automatically via a database function on auth user signup.</li>
+              <li><strong>Read:</strong> Fetched on user profile page, header stats, and user manager lists in the Admin panel.</li>
+              <li><strong>Update:</strong> Updated when users edit profile preferences, teammates, or toggle theme settings.</li>
+              <li><strong>Delete:</strong> Truncated automatically when admins delete users via user panel.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Table 2 -->
+        <div style="border:1px solid var(--border);border-radius:16px;padding:20px;background:color-mix(in srgb, var(--surface-2) 30%, transparent)">
+          <h3 style="margin:0 0 10px;color:var(--accent)">2. tournaments (Event Details & Brackets)</h3>
+          <p style="font-size:.9rem;margin:0 0 14px">Stores details about created events, registered squads, and matches.</p>
+          <div style="font-family:monospace;font-size:.85rem;color:var(--muted);margin-bottom:12px;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:10px;border-radius:8px">
+            <strong>Columns:</strong><br>
+            - id: TEXT (Primary Key)<br>
+            - owner_id: UUID (Foreign Key, references profiles.id)<br>
+            - data: JSONB (Stores nested teams, matches, join requests, and visual configurations)<br>
+            - created_at: TIMESTAMPTZ (Default NOW())<br>
+            - updated_at: TIMESTAMPTZ (Default NOW())
+          </div>
+          <div style="font-size:.9rem"><strong>CRUD Integration:</strong>
+            <ul>
+              <li><strong>Create:</strong> Host inputs new tournament name and game metadata in the tournament builder page.</li>
+              <li><strong>Read:</strong> Loaded on the public Tournaments Browse view, details overlay, and dynamic Schedule pages.</li>
+              <li><strong>Update:</strong> Modified on teammate joins, status changes, auto-matching generation, and result submissions.</li>
+              <li><strong>Delete:</strong> Deletable by creators under My Hub tournament history.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Table 3 -->
+        <div style="border:1px solid var(--border);border-radius:16px;padding:20px;background:color-mix(in srgb, var(--surface-2) 30%, transparent)">
+          <h3 style="margin:0 0 10px;color:var(--accent)">3. user_players (Personal Squad Rosters)</h3>
+          <p style="font-size:.9rem;margin:0 0 14px">Stores squads registered by users to quickly enter lineups into brackets.</p>
+          <div style="font-family:monospace;font-size:.85rem;color:var(--muted);margin-bottom:12px;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:10px;border-radius:8px">
+            <strong>Columns:</strong><br>
+            - id: UUID (Primary Key)<br>
+            - user_id: UUID (Foreign Key, references profiles.id)<br>
+            - data: JSONB (Stores the array of customized player objects with names, games, ranks, and images)<br>
+            - created_at: TIMESTAMPTZ (Default NOW())<br>
+            - updated_at: TIMESTAMPTZ (Default NOW())
+          </div>
+          <div style="font-size:.9rem"><strong>CRUD Integration:</strong>
+            <ul>
+              <li><strong>Create:</strong> Form validation on the Squad registry creates new profiles.</li>
+              <li><strong>Read:</strong> Displayed on the Players Gallery view and in quick-select tournament signups.</li>
+              <li><strong>Update:</strong> Edited when updating player details (e.g. game, rank, image).</li>
+              <li><strong>Delete:</strong> Deletable by deleting cards inside the squad management screen.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Table 4 -->
+        <div style="border:1px solid var(--border);border-radius:16px;padding:20px;background:color-mix(in srgb, var(--surface-2) 30%, transparent)">
+          <h3 style="margin:0 0 10px;color:var(--accent)">4. contact_messages (Support Tickets)</h3>
+          <p style="font-size:.9rem;margin:0 0 14px">Stores support requests and contact forms submitted by platform guests.</p>
+          <div style="font-family:monospace;font-size:.85rem;color:var(--muted);margin-bottom:12px;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:10px;border-radius:8px">
+            <strong>Columns:</strong><br>
+            - id: UUID (Primary Key)<br>
+            - name: TEXT (Not Null)<br>
+            - email: TEXT (Not Null)<br>
+            - dob: TEXT<br>
+            - message: TEXT (Not Null)<br>
+            - created_at: TIMESTAMPTZ (Default NOW())
+          </div>
+          <div style="font-size:.9rem"><strong>CRUD Integration:</strong>
+            <ul>
+              <li><strong>Create:</strong> Form submission on the Support Desk Contact page inserts logs.</li>
+              <li><strong>Read:</strong> Accessible in the Admin panel message tabs for staff review.</li>
+              <li><strong>Update / Delete:</strong> Restricted (read-only history logs).</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Table 5 -->
+        <div style="border:1px solid var(--border);border-radius:16px;padding:20px;background:color-mix(in srgb, var(--surface-2) 30%, transparent)">
+          <h3 style="margin:0 0 10px;color:var(--accent)">5. leaderboard_entries (Dynamic Standings)</h3>
+          <p style="font-size:.9rem;margin:0 0 14px">Stores leaderboard stats and ranks for top competing teams.</p>
+          <div style="font-family:monospace;font-size:.85rem;color:var(--muted);margin-bottom:12px;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:10px;border-radius:8px">
+            <strong>Columns:</strong><br>
+            - id: UUID (Primary Key)<br>
+            - team_name: TEXT (Not Null)<br>
+            - game: TEXT (Default '')<br>
+            - wins: INTEGER (Default 0)<br>
+            - losses: INTEGER (Default 0)<br>
+            - rank: INTEGER (Default 0)<br>
+            - notes: TEXT (Default '')<br>
+            - updated_by: UUID (Foreign Key, references profiles.id)<br>
+            - created_at: TIMESTAMPTZ (Default NOW())<br>
+            - updated_at: TIMESTAMPTZ (Default NOW())
+          </div>
+          <div style="font-size:.9rem"><strong>CRUD Integration:</strong>
+            <ul>
+              <li><strong>Create:</strong> Admins add teams and initial scores in the Admin panel.</li>
+              <li><strong>Read:</strong> Displayed in descending rank on the public Leaderboard.</li>
+              <li><strong>Update:</strong> Edited by admin staff when editing records/wins.</li>
+              <li><strong>Delete:</strong> Removed by admins using delete controls.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-links">
+    <a href="index.html">Home</a>
+    <a href="tournaments.html">Browse</a>
+    <a href="leaderboard.html">Leaderboard</a>
+    <a href="create.html">Create</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="players.html">Players</a>
+    <a href="team.html">Teams</a>
+    <a href="my-tournaments.html">My Hub</a>
+    <a href="profile.html">Profile</a>
+    <a href="contact.html">Support</a>
+    <a href="schema.html">DB Schema</a>
+    <a href="signup.html">Sign Up</a>
+    <a href="login.html">Login</a>
+  </div>
+  <div>
+    <span class="footer-brand">Zoltrakk Arena</span>
+    <span style="display:block;margin-top:8px">&copy; 2026 Zoltrakk Tournament — Built for players, by players.</span>
+  </div>
+</footer>
+</body>
+</html>
