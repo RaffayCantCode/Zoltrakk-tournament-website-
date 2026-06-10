@@ -868,7 +868,11 @@ function initSignupPage() {
     const signupMsg = document.getElementById("signupSuccess");
     try {
       signupMsg.textContent = "Creating account...";
-      await signUpUser(em, p, { firstName: f, lastName: l, age: a });
+      const result = await signUpUser(em, p, { firstName: f, lastName: l, age: a });
+      // After signup, attempt to auto-login (email gets auto-confirmed by DB trigger)
+      signupMsg.textContent = "Signing you in...";
+      await new Promise(r => setTimeout(r, 1000));
+      await signInUser(em, p);
       await loadCurrentUser();
       signupMsg.textContent = "Account created. Redirecting...";
       setTimeout(() => { location.href = "my-tournaments.html"; }, 650);
@@ -916,7 +920,12 @@ function initLoginPage() {
       status.textContent = "Login successful. Redirecting...";
       setTimeout(() => { location.href = "my-tournaments.html"; }, 550);
     } catch (err) {
-      status.textContent = err.message || "Invalid email or password.";
+      status.className = "error";
+      if (err.message?.toLowerCase().includes("email not confirmed")) {
+        status.textContent = "Email not confirmed. Try signing up again — we auto-confirm new accounts now.";
+      } else {
+        status.textContent = err.message || "Invalid email or password.";
+      }
       submitBtn.disabled = false;
       submitBtn.textContent = "Login";
     }
