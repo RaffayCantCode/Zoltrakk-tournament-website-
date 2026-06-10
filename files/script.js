@@ -401,8 +401,8 @@ function normalizeHeaderNav() {
   // ── Auth buttons ──
   let authHtml = "";
   if (user) {
-    authHtml += `<a href="admin.html" class="${isActive("admin.html")}">Admin</a>`;
-    authHtml += `<a href="my-tournaments.html" class="${isActive("my-tournaments.html")}">My Hub</a>`;
+    if (user.is_admin) authHtml += `<a href="admin.html" class="${isActive("admin.html")}">Admin</a>`;
+    authHtml += `<a href="profile.html" class="${isActive("profile.html")}">Profile</a>`;
     authHtml += `<a href="#" data-logout>Logout</a>`;
   } else {
     authHtml += `<a href="signup.html" class="${isActive("signup.html")}">Sign Up</a>`;
@@ -456,7 +456,7 @@ function normalizeHeaderNav() {
 
   slideHtml += `<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border)"><strong style="display:block;padding:6px 14px;font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Account</strong>`;
   if (user) {
-    slideHtml += `<a href="admin.html" class="${isActive("admin.html")}" style="font-weight:700;color:var(--primary)">Admin Panel</a>`;
+    if (user.is_admin) slideHtml += `<a href="admin.html" class="${isActive("admin.html")}" style="font-weight:700;color:var(--primary)">Admin Panel</a>`;
     slideHtml += `<a href="profile.html" class="${isActive("profile.html")}">Profile</a>`;
     slideHtml += `<a href="#" data-logout-mobile>Logout</a>`;
   } else {
