@@ -472,6 +472,33 @@ async function saveUserPlayers(data) {
   }
 }
 
+let _allPlayersCache = [];
+
+function getAllPlayers() { return _allPlayersCache; }
+
+async function loadAllPlayers() {
+  try {
+    const { data, error } = await supabaseClient
+      .from("user_players")
+      .select("data, user_id");
+    if (error) throw error;
+    const all = [];
+    (data || []).forEach(row => {
+      if (Array.isArray(row.data)) {
+        row.data.forEach(p => {
+          all.push({ ...p, userId: row.user_id });
+        });
+      }
+    });
+    _allPlayersCache = all;
+    return _allPlayersCache;
+  } catch (err) {
+    console.error("Failed to load all players from DB:", err);
+    _allPlayersCache = [];
+    return [];
+  }
+}
+
 // ── Toast / Loading Helpers ──────────────────────────────────
 function showToast(msg, type) {
   const toast = document.createElement("div");
@@ -1067,9 +1094,8 @@ function paidEntrySummary(t) {
 }
 
 function playersForDisplay() {
-  const user = getCurrentUser();
-  const squad = user ? getUserPlayers() : [];
-  const merged = [...squad];
+  const allSquadPlayers = getAllPlayers();
+  const merged = [...allSquadPlayers];
   for (const mp of MOCK_PLAYERS) {
     if (!merged.some(p => p.name.toLowerCase() === mp.name.toLowerCase())) {
       merged.push(mp);
@@ -1188,6 +1214,7 @@ async function initPlayersPage() {
       const a = getUserPlayers();
       a.splice(+b.dataset.i, 1);
       await saveUserPlayers(a);
+      await loadAllPlayers();
       renderParticipants();
     });
     renderGrid();
@@ -1210,6 +1237,7 @@ async function initPlayersPage() {
       const image = await readOptionalImage(imageInput);
       all.push({ id: uid(), name, game, rank: rank || "Unranked", image, updatedAt: nowIso() });
       await saveUserPlayers(all);
+      await loadAllPlayers();
       form.reset();
       if (imagePreview) {
         imagePreview.classList.add("hidden");
@@ -4079,7 +4107,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([
     loadCurrentUser(),
     loadTournaments(),
-    loadUserPlayers()
+    loadUserPlayers(),
+    loadAllPlayers()
   ]);
 
   normalizeHeaderNav();

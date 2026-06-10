@@ -61,5 +61,12 @@ CREATE TRIGGER on_leaderboard_entries_updated
 -- 4) Enable realtime for leaderboard_entries
 ALTER PUBLICATION supabase_realtime ADD TABLE leaderboard_entries;
 
+-- 5) Fix user_players RLS so anyone can view players
+DROP POLICY IF EXISTS "Users can view own players" ON user_players;
+DROP POLICY IF EXISTS "Anyone can view user players" ON user_players;
+CREATE POLICY "Anyone can view user players"
+  ON user_players FOR SELECT
+  USING (true);
+
 -- Verify
-SELECT schemaname, tablename, policyname, cmd FROM pg_policies WHERE tablename IN ('tournaments', 'leaderboard_entries') ORDER BY tablename, policyname;
+SELECT schemaname, tablename, policyname, cmd FROM pg_policies WHERE tablename IN ('tournaments', 'leaderboard_entries', 'user_players') ORDER BY tablename, policyname;
