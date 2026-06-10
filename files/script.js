@@ -49,28 +49,248 @@ let _userPlayersCache = null;
 
 function getTournaments() { return _tournamentsCache || []; }
 
+const MOCK_PLAYERS = [
+  { id: "p1", name: "Raffay", game: "Valorant", rank: "Diamond", image: DEFAULT_PLAYER_IMAGE },
+  { id: "p2", name: "Asif", game: "CS2", rank: "Platinum", image: DEFAULT_PLAYER_IMAGE },
+  { id: "p3", name: "Neo", game: "CS2", rank: "Diamond", image: DEFAULT_PLAYER_IMAGE },
+  { id: "p4", name: "Apex", game: "League of Legends", rank: "Gold", image: DEFAULT_PLAYER_IMAGE },
+  { id: "p5", name: "Volt", game: "Valorant", rank: "Gold", image: DEFAULT_PLAYER_IMAGE },
+  { id: "p6", name: "Specter", game: "Overwatch", rank: "Silver", image: DEFAULT_PLAYER_IMAGE }
+];
+
+function getMockTournaments() {
+  const t1 = {
+    id: "t1-mock-id",
+    shareToken: "token-1",
+    tournamentName: "Zoltrakk Valorant Masters",
+    game: "Valorant",
+    description: "The premier Valorant event of Zoltrakk Arena. 4 top-tier teams face off for a grand prize pool in a high-stakes bracket.",
+    rules: "1. Respect all players. 2. Standard map pool. 3. Best of 3 for Grand Finals.",
+    startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    playerLimit: 32,
+    bannerImage: "",
+    adminName: "ZoltrakkAdmin",
+    adminId: "admin-id",
+    ownerUserId: "admin-id",
+    ownerEmail: "admin@zoltrakk.com",
+    status: "active",
+    visibility: "public",
+    joinType: "quick",
+    settings: { joinApproval: false },
+    removedPlayers: [],
+    joinRequests: [],
+    paymentWallet: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+    paidEntry: { enabled: false, entryFeeEth: "", verificationRequired: false },
+    announcements: [
+      { id: "a1", title: "Tournament is Live!", content: "Matches are now underway. Keep an eye on the schedule!", createdAt: nowIso() }
+    ],
+    prize: {
+      amount: "1.5",
+      type: "ETH",
+      description: "1.5 ETH distributed to the champion team.",
+      winnerCount: 1,
+      verificationStatus: "verified",
+      fundingTx: { txHash: "0x5c8e312a02ea7bcf87c67c514ffc186b86fb35efbb2a4bb49b49bcf20cfd470d" },
+      claims: [],
+      winnerConfirmed: false
+    },
+    teams: [
+      { id: "team-1", name: "Team XO!", joinType: "open", members: [
+        { name: "Asif", role: "Captain" }, { name: "Raffay", role: "Member" }, { name: "Volt", role: "Member" }, { name: "Specter", role: "Member" }, { name: "Xenon", role: "Member" }
+      ] },
+      { id: "team-2", name: "Alpha Squad", joinType: "open", members: [
+        { name: "Apex", role: "Captain" }, { name: "Shadow", role: "Member" }, { name: "Wraith", role: "Member" }, { name: "Cypher", role: "Member" }, { name: "Omen", role: "Member" }
+      ] },
+      { id: "team-3", name: "Nexus Gaming", joinType: "open", members: [
+        { name: "Phoenix", role: "Captain" }, { name: "Jett", role: "Member" }, { name: "Sage", role: "Member" }, { name: "Sova", role: "Member" }, { name: "Breach", role: "Member" }
+      ] },
+      { id: "team-4", name: "Shadow Hunters", joinType: "open", members: [
+        { name: "Ghost", role: "Captain" }, { name: "Reaper", role: "Member" }, { name: "Viper", role: "Member" }, { name: "Raze", role: "Member" }, { name: "Reyna", role: "Member" }
+      ] }
+    ],
+    matches: []
+  };
+  generateFullBracket(t1);
+  t1.matches[0].a = "Team XO!";
+  t1.matches[0].b = "Alpha Squad";
+  t1.matches[0].status = "completed";
+  t1.matches[0].winner = "Team XO!";
+  t1.matches[0].score = "2 - 1";
+
+  t1.matches[1].a = "Nexus Gaming";
+  t1.matches[1].b = "Shadow Hunters";
+  t1.matches[1].status = "completed";
+  t1.matches[1].winner = "Nexus Gaming";
+  t1.matches[1].score = "2 - 0";
+
+  t1.matches[2].a = "Team XO!";
+  t1.matches[2].b = "Nexus Gaming";
+  t1.matches[2].status = "scheduled";
+
+  const t2 = {
+    id: "t2-mock-id",
+    shareToken: "token-2",
+    tournamentName: "Zoltrakk Rift Showdown",
+    game: "League of Legends",
+    description: "A fast-paced, double-elimination League of Legends tournament. Bring your team and battle for the title of Rift Champions.",
+    rules: "1. Standard Summoner's Rift map. 2. Tournament draft mode. 3. No cheating or toxic behavior.",
+    startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    playerLimit: 32,
+    bannerImage: "",
+    adminName: "ZoltrakkAdmin",
+    adminId: "admin-id",
+    ownerUserId: "admin-id",
+    ownerEmail: "admin@zoltrakk.com",
+    status: "upcoming",
+    visibility: "public",
+    joinType: "quick",
+    settings: { joinApproval: false },
+    removedPlayers: [],
+    joinRequests: [],
+    paymentWallet: "",
+    paidEntry: { enabled: false, entryFeeEth: "", verificationRequired: false },
+    announcements: [
+      { id: "a2", title: "Registration is Open!", content: "Join now to secure your spot. Slots are filling fast!", createdAt: nowIso() }
+    ],
+    prize: {
+      amount: "500",
+      type: "Cash",
+      description: "$500 cash prize split among the winning squad.",
+      winnerCount: 1,
+      verificationStatus: "none",
+      fundingTx: null,
+      claims: [],
+      winnerConfirmed: false
+    },
+    teams: [
+      { id: "team-5", name: "Pixel Gaming", joinType: "open", members: [
+        { name: "Cyber", role: "Captain" }, { name: "Byte", role: "Member" }, { name: "Glitch", role: "Member" }, { name: "Pixel", role: "Member" }, { name: "Vector", role: "Member" }
+      ] },
+      { id: "team-6", name: "Vanguard Esports", joinType: "open", members: [
+        { name: "Titan", role: "Captain" }, { name: "Rogue", role: "Member" }, { name: "Vortex", role: "Member" }, { name: "Aegis", role: "Member" }, { name: "Slayer", role: "Member" }
+      ] }
+    ],
+    matches: []
+  };
+  generateFullBracket(t2);
+
+  const t3 = {
+    id: "t3-mock-id",
+    shareToken: "token-3",
+    tournamentName: "Zoltrakk CS2 Challenger Cup",
+    game: "CS2",
+    description: "The ultimate Counter-Strike 2 challenge. 4 teams entered, but only one walked away with the grand prize.",
+    rules: "1. Standard competitive settings. 2. Active duty maps only. 3. Overtime enabled.",
+    startsAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    playerLimit: 32,
+    bannerImage: "",
+    adminName: "ZoltrakkAdmin",
+    adminId: "admin-id",
+    ownerUserId: "admin-id",
+    ownerEmail: "admin@zoltrakk.com",
+    status: "completed",
+    visibility: "public",
+    joinType: "quick",
+    settings: { joinApproval: false },
+    removedPlayers: [],
+    joinRequests: [],
+    paymentWallet: "",
+    paidEntry: { enabled: false, entryFeeEth: "", verificationRequired: false },
+    announcements: [
+      { id: "a3", title: "We Have a Champion!", content: "Congratulations to Zoltrakk Elite for winning the Challenger Cup!", createdAt: nowIso() }
+    ],
+    prize: {
+      amount: "1.0",
+      type: "ETH",
+      description: "1.0 ETH prize fund.",
+      winnerCount: 1,
+      verificationStatus: "verified",
+      fundingTx: { txHash: "0x8a9e312a02ea7bcf87c67c514ffc186b86fb35efbb2a4bb49b49bcf20cfd470d" },
+      claims: [],
+      winnerConfirmed: true
+    },
+    teams: [
+      { id: "team-7", name: "Zoltrakk Elite", joinType: "open", members: [
+        { name: "Neo", role: "Captain" }, { name: "Trinity", role: "Member" }, { name: "Morpheus", role: "Member" }, { name: "Link", role: "Member" }, { name: "Tank", role: "Member" }
+      ] },
+      { id: "team-8", name: "Alliance", joinType: "open", members: [
+        { name: "S4", role: "Captain" }, { name: "Loda", role: "Member" }, { name: "Akke", role: "Member" }, { name: "EGM", role: "Member" }, { name: "Bulldog", role: "Member" }
+      ] },
+      { id: "team-9", name: "Navi Classic", joinType: "open", members: [
+        { name: "Dendi", role: "Captain" }, { name: "Puppey", role: "Member" }, { name: "XBOCT", role: "Member" }, { name: "Kuroky", role: "Member" }, { name: "Funn1k", role: "Member" }
+      ] },
+      { id: "team-10", name: "Fnatic Legacy", joinType: "open", members: [
+        { name: "JW", role: "Captain" }, { name: "Flusha", role: "Member" }, { name: "Pronax", role: "Member" }, { name: "Olofmeister", role: "Member" }, { name: "Krimz", role: "Member" }
+      ] }
+    ],
+    matches: []
+  };
+  generateFullBracket(t3);
+  t3.matches[0].a = "Zoltrakk Elite";
+  t3.matches[0].b = "Alliance";
+  t3.matches[0].status = "completed";
+  t3.matches[0].winner = "Zoltrakk Elite";
+  t3.matches[0].score = "16 - 10";
+
+  t3.matches[1].a = "Navi Classic";
+  t3.matches[1].b = "Fnatic Legacy";
+  t3.matches[1].status = "completed";
+  t3.matches[1].winner = "Navi Classic";
+  t3.matches[1].score = "16 - 12";
+
+  t3.matches[2].a = "Zoltrakk Elite";
+  t3.matches[2].b = "Navi Classic";
+  t3.matches[2].status = "completed";
+  t3.matches[2].winner = "Zoltrakk Elite";
+  t3.matches[2].score = "16 - 14";
+  t3.winner = "Zoltrakk Elite";
+  t3.completedAt = nowIso();
+  t3.updatedAt = nowIso();
+
+  return [t1, t2, t3];
+}
+
+function getMockLeaderboardEntries() {
+  return [
+    { id: "lb1", team_name: "Team XO!", wins: 15, losses: 3, rank: 1, game: "Valorant", notes: "Top performing Valorant roster.", created_at: nowIso(), updated_at: nowIso() },
+    { id: "lb2", team_name: "Zoltrakk Elite", wins: 12, losses: 5, rank: 2, game: "CS2", notes: "CS2 Challenger Cup Champion.", created_at: nowIso(), updated_at: nowIso() },
+    { id: "lb3", team_name: "Alpha Squad", wins: 10, losses: 6, rank: 3, game: "League of Legends", notes: "Consistent contender.", created_at: nowIso(), updated_at: nowIso() },
+    { id: "lb4", team_name: "Nexus Gaming", wins: 8, losses: 8, rank: 4, game: "Valorant", notes: "Solid mid-table squad.", created_at: nowIso(), updated_at: nowIso() },
+    { id: "lb5", team_name: "Pixel Gaming", wins: 5, losses: 10, rank: 5, game: "League of Legends", notes: "Recent qualifier team.", created_at: nowIso(), updated_at: nowIso() }
+  ];
+}
+
 async function loadTournaments() {
   if (_tournamentsCache) return _tournamentsCache;
+  let dbTours = [];
   try {
     const { data, error } = await supabaseClient
       .from("tournaments")
       .select("data")
       .order("created_at", { ascending: false });
-    if (error) throw error;
-    _tournamentsCache = (data || []).map(r => r.data);
-    return _tournamentsCache;
+    if (!error && data) {
+      dbTours = data.map(r => r.data);
+    }
   } catch (err) {
-    console.error("Failed to load tournaments:", err);
-    _tournamentsCache = [];
-    return [];
+    console.error("Failed to load tournaments from DB:", err);
   }
+
+  // Always merge mock tournaments
+  const mock = getMockTournaments();
+  const merged = [...dbTours];
+  for (const mt of mock) {
+    if (!merged.some(t => t.id === mt.id)) {
+      merged.push(mt);
+    }
+  }
+
+  _tournamentsCache = merged;
+  return _tournamentsCache;
 }
 
 async function saveTournamentToSupabase(t) {
   t.updatedAt = nowIso();
   const user = _currentUserCache;
-  // Use the original owner from the tournament data, not the current user
-  // This prevents RLS failing when a non-creator joins a team
   const ownerId = t.ownerUserId || user?.id || null;
   const { error } = await supabaseClient
     .from("tournaments")
@@ -96,13 +316,30 @@ let _leaderboardCache = [];
 function getLeaderboardEntries() { return _leaderboardCache; }
 
 async function loadLeaderboardEntries() {
-  const { data, error } = await supabaseClient
-    .from("leaderboard_entries")
-    .select("*")
-    .order("rank", { ascending: true, nullsLast: true })
-    .order("wins", { ascending: false });
-  if (error) { console.error("Failed to load leaderboard:", error); _leaderboardCache = []; return []; }
-  _leaderboardCache = data || [];
+  let dbEntries = [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("leaderboard_entries")
+      .select("*")
+      .order("rank", { ascending: true, nullsLast: true })
+      .order("wins", { ascending: false });
+    if (!error && data) {
+      dbEntries = data;
+    }
+  } catch (err) {
+    console.error("Failed to load leaderboard from DB:", err);
+  }
+
+  // Always merge mock leaderboard entries
+  const mock = getMockLeaderboardEntries();
+  const merged = [...dbEntries];
+  for (const me of mock) {
+    if (!merged.some(e => e.team_name.toLowerCase() === me.team_name.toLowerCase())) {
+      merged.push(me);
+    }
+  }
+
+  _leaderboardCache = merged;
   return _leaderboardCache;
 }
 
@@ -831,8 +1068,14 @@ function paidEntrySummary(t) {
 
 function playersForDisplay() {
   const user = getCurrentUser();
-  if (!user) return [];
-  return getUserPlayers().map((p) => ({
+  const squad = user ? getUserPlayers() : [];
+  const merged = [...squad];
+  for (const mp of MOCK_PLAYERS) {
+    if (!merged.some(p => p.name.toLowerCase() === mp.name.toLowerCase())) {
+      merged.push(mp);
+    }
+  }
+  return merged.map((p) => ({
     id: p.id,
     name: p.name,
     game: p.game,
@@ -3332,6 +3575,17 @@ function initLeaderboardPage() {
   const root = document.getElementById("leaderboardRoot");
   if (!root) return;
 
+  const famousRosters = {
+    "Team XO!": "Asif, Raffay, Volt, Specter, Xenon",
+    "Zoltrakk Elite": "Neo, Trinity, Morpheus, Link, Tank",
+    "Alpha Squad": "Apex, Shadow, Wraith, Cypher, Omen",
+    "Nexus Gaming": "Phoenix, Jett, Sage, Sova, Breach",
+    "Pixel Gaming": "Cyber, Byte, Glitch, Pixel, Vector",
+    "Alliance": "S4, Loda, Akke, EGM, Bulldog",
+    "Navi Classic": "Dendi, Puppey, XBOCT, Kuroky, Funn1k",
+    "Fnatic Legacy": "JW, Flusha, Pronax, Olofmeister, Krimz"
+  };
+
   const render = () => {
     const game = document.getElementById("lbGameFilter")?.value || "";
     const query = (document.getElementById("lbSearch")?.value || "").toLowerCase();
@@ -3341,7 +3595,7 @@ function initLeaderboardPage() {
 
     // Computed entries from completed matches
     tournaments.forEach(t => {
-      if (game && t.game !== game) return;
+      if (game && (t.game || "").toLowerCase() !== game.toLowerCase()) return;
       (t.matches || []).forEach(m => {
         if (m.status !== "completed" || !m.winner) return;
         const winner = m.winner.trim();
@@ -3357,7 +3611,7 @@ function initLeaderboardPage() {
 
     // Overlay with manual entries from admin
     manualEntries.forEach(e => {
-      if (game && e.game && e.game !== game) return;
+      if (game && e.game && e.game.toLowerCase() !== game.toLowerCase()) return;
       const key = e.team_name;
       if (!teamScores[key]) {
         teamScores[key] = { name: key, wins: 0, games: new Set(), tournaments: new Set(), source: "manual", rank: e.rank };
@@ -3371,6 +3625,22 @@ function initLeaderboardPage() {
 
     let sorted = Object.values(teamScores);
     if (query) sorted = sorted.filter(s => s.name.toLowerCase().includes(query));
+
+    // Resolve rosters
+    sorted.forEach(s => {
+      if (famousRosters[s.name]) {
+        s.roster = famousRosters[s.name];
+      } else {
+        for (const t of tournaments) {
+          const tm = t.teams.find(x => x.name.toLowerCase() === s.name.toLowerCase());
+          if (tm && tm.members && tm.members.length) {
+            s.roster = tm.members.map(m => m.name).join(", ");
+            break;
+          }
+        }
+      }
+      if (!s.roster) s.roster = "TBD Roster";
+    });
 
     // Sort: manual entries by rank first (rank > 0), then by wins desc
     sorted.sort((a, b) => {
@@ -3392,12 +3662,13 @@ function initLeaderboardPage() {
         </div>
         <div class="table-wrap" style="border:none">
           <table>
-            <tr><th>#</th><th>Team</th><th>Wins</th><th>Games</th><th>Tournaments</th></tr>
+            <tr><th>#</th><th>Team</th><th>Famous Roster</th><th>Wins</th><th>Games</th><th>Tournaments</th></tr>
             ${sorted.map((s, i) => {
               const medal = i === 0 ? "&#129351;" : i === 1 ? "&#129352;" : i === 2 ? "&#129353;" : "";
               return `<tr class="${i < 3 ? "top-three" : ""}">
                 <td><strong>${medal || (i + 1)}</strong></td>
                 <td><strong>${esc(s.name)}</strong></td>
+                <td><span class="hint-text" style="font-size:.85rem">${esc(s.roster)}</span></td>
                 <td><span class="badge">${s.wins}</span></td>
                 <td>${Array.from(s.games).map(g => esc(g)).join(", ")}</td>
                 <td>${s.tournaments.size}</td>
@@ -3408,7 +3679,13 @@ function initLeaderboardPage() {
       </div>`;
   };
 
-  ["lbGameFilter", "lbSearch"].forEach(id => document.getElementById(id)?.addEventListener("input", render));
+  ["lbGameFilter", "lbSearch"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", render);
+      el.addEventListener("change", render);
+    }
+  });
   loadLeaderboardEntries().then(() => { render(); subscribeToLeaderboard(render); });
   render();
   subscribeToTournaments(render);
