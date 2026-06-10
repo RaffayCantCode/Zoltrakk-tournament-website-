@@ -1,0 +1,8 @@
+{
+  "name": "zoltrakk-tournament-website",
+  "version": "1.0.0",
+  "description": "Zoltrakk Arena Tournament Website",
+  "scripts": {
+    "build": "echo 'Static site, no build needed'"
+  }
+}

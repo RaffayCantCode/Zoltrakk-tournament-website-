@@ -1,4 +1,4 @@
-export async function handler(event, context) {
+exports.handler = async function (event, context) {
   return {
     statusCode: 200,
     headers: {
@@ -12,4 +12,4 @@ export async function handler(event, context) {
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ""
     })
   };
-}
+};
