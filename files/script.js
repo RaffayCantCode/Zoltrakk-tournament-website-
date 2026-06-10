@@ -1781,9 +1781,17 @@ function renderDetail(t) {
   const squadSelect = document.getElementById("squadQuickSelect");
   const renderJoinDynamic = () => {
     if (document.getElementById("joinMode").value === "create") {
-      joinDynamic.innerHTML = `<label>Team Name</label><input id="newTeamName" placeholder="Team Rockets">`;
+      joinDynamic.innerHTML = `<label>Team Name</label><input id="newTeamName" placeholder="Team Rockets">
+        <label style="margin-top:8px">Team Type</label>
+        <select id="teamJoinType">
+          <option value="open">Open — anyone can join</option>
+          <option value="request">Request — players ask to join</option>
+        </select>`;
     } else {
-      joinDynamic.innerHTML = `<label>Select Team</label><select id="existingTeamSel">${t.teams.map((tm) => `<option value="${tm.id}">${esc(tm.name)}</option>`).join("")}</select>`;
+      joinDynamic.innerHTML = `<label>Select Team</label><select id="existingTeamSel">${t.teams.map((tm) => {
+        const badge = tm.joinType === "request" ? " 🔒" : "";
+        return `<option value="${tm.id}">${esc(tm.name)}${badge}</option>`;
+      }).join("")}</select>`;
     }
   };
   renderJoinDynamic();
@@ -1815,14 +1823,33 @@ function renderDetail(t) {
 
   const renderTeams = () => {
     const list = document.getElementById("teamsList");
-    list.innerHTML = t.teams.length ? t.teams.map((tm, idx) => `
-      <article class="card" style="padding:10px;margin-bottom:8px">
-      <strong>${idx + 1}. ${esc(tm.name)}</strong>
+    const currentUserName = getCurrentUser()?.name || "";
+    list.innerHTML = t.teams.length ? t.teams.map((tm, idx) => {
+      const joinBadge = tm.joinType === "request" ? `<span class="tag" style="font-size:.65rem;padding:2px 8px;margin-left:6px;background:color-mix(in srgb,var(--accent) 12%,var(--surface))">Request</span>` : `<span class="tag" style="font-size:.65rem;padding:2px 8px;margin-left:6px">Open</span>`;
+      const captain = tm.members.find(m => m.role === "Captain");
+      const isMyTeam = captain && captain.name === currentUserName;
+      const pendingReqs = (tm.requests || []).filter(r => r.status === "pending");
+      return `<article class="card" style="padding:10px;margin-bottom:8px">
+      <strong>${idx + 1}. ${esc(tm.name)} ${joinBadge}</strong>
       <ul>${tm.members.map((m, memberIdx) => `<li>${esc(m.name)}${m.role ? ` - ${esc(m.role)}` : ""} ${m.paymentTx ? `<span class="tag verified">Paid</span>` : ""} ${isAdmin && m.paymentTx ? `<span class="hint-text">${esc(m.paymentTx)}</span>` : ""} ${isAdmin ? `<button class="mini-danger" data-remove-member="${tm.id}" data-member="${memberIdx}">Remove</button>` : ""}</li>`).join("")}</ul>
       ${isAdmin ? `<button class="btn alt" data-del="${tm.id}">Delete</button>
       <button class="btn alt" data-up="${tm.id}">Move Up</button>
       <button class="btn alt" data-down="${tm.id}">Move Down</button>` : ""}
-      </article>`).join("") : "<p>No teams yet.</p>";
+      ${isMyTeam && pendingReqs.length ? `<div style="margin-top:8px;padding:10px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));border-radius:8px;border:1px solid color-mix(in srgb,var(--accent) 12%,var(--border))">
+        <strong style="font-size:.8rem;display:block;margin-bottom:6px">Pending Join Requests (${pendingReqs.length})</strong>
+        ${pendingReqs.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:.85rem">
+            <strong>${esc(r.playerName)}</strong>
+            ${r.rank ? `<span class="hint-text" style="margin-left:6px">${esc(r.rank)}</span>` : ""}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" style="padding:4px 10px;font-size:.75rem" data-approve-team-req="${tm.id}" data-req-id="${r.id}">Approve</button>
+            <button class="btn alt" style="padding:4px 10px;font-size:.75rem" data-deny-team-req="${tm.id}" data-req-id="${r.id}">Deny</button>
+          </div>
+        </div>`).join("")}
+      </div>` : ""}
+      </article>`;
+    }).join("") : "<p>No teams yet.</p>";
     if (isAdmin) {
       list.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => { t.teams = t.teams.filter((x) => x.id !== b.dataset.del); await saveTournament(t); renderAll(); });
       list.querySelectorAll("[data-remove-member]").forEach((b) => b.onclick = async () => {
@@ -1847,6 +1874,23 @@ function renderDetail(t) {
         renderAll();
       });
     }
+    list.querySelectorAll("[data-approve-team-req]").forEach((b) => b.onclick = async () => {
+      const team = t.teams.find((x) => x.id === b.dataset.approveTeamReq);
+      const req = team?.requests?.find((r) => r.id === b.dataset.reqId);
+      if (!team || !req || req.status !== "pending") return;
+      req.status = "approved";
+      team.members.push({ name: req.playerName, role: "Member" });
+      await saveTournament(t);
+      renderAll();
+    });
+    list.querySelectorAll("[data-deny-team-req]").forEach((b) => b.onclick = async () => {
+      const team = t.teams.find((x) => x.id === b.dataset.denyTeamReq);
+      const req = team?.requests?.find((r) => r.id === b.dataset.reqId);
+      if (!team || !req || req.status !== "pending") return;
+      req.status = "denied";
+      await saveTournament(t);
+      renderAll();
+    });
   };
 
   const renderMatches = () => {
@@ -1896,7 +1940,7 @@ function renderDetail(t) {
   const applyJoin = (join) => {
     const paymentMeta = join.payment ? { walletAddress: join.walletAddress, paymentTx: join.payment.txHash, paymentStatus: join.paymentStatus } : {};
     if (join.mode === "create") {
-      t.teams.push({ id: uid(), name: join.teamName, members: [{ name: join.name, role: "Captain", ...paymentMeta }] });
+      t.teams.push({ id: uid(), name: join.teamName, joinType: join.teamJoinType || "open", requests: [], members: [{ name: join.name, role: "Captain", ...paymentMeta }] });
     } else {
       const team = t.teams.find((x) => x.id === join.teamId);
       if (team) team.members.push({ name: join.name, role: "Member", ...paymentMeta });
@@ -1920,10 +1964,22 @@ function renderDetail(t) {
       if (!tn) return void (msg.textContent = "Enter team name.");
       if (t.teams.some((x) => x.name.toLowerCase() === tn.toLowerCase())) return void (msg.textContent = "Team name already exists.");
       join.teamName = tn;
+      join.teamJoinType = document.getElementById("teamJoinType")?.value || "open";
     } else {
       const team = t.teams.find((x) => x.id === document.getElementById("existingTeamSel").value);
       if (!team) return void (msg.textContent = "No team selected.");
       if (team.members.some((m) => m.name.toLowerCase() === name.toLowerCase())) return void (msg.textContent = "You are already in this team.");
+      if (team.joinType === "request") {
+        if (!team.requests) team.requests = [];
+        if (team.requests.some(r => r.playerName.toLowerCase() === name.toLowerCase() && r.status === "pending")) return void (msg.textContent = "You already have a pending request for this team.");
+        const user = getCurrentUser();
+        team.requests.push({ id: uid(), playerName: name, playerId: user?.id || "", rank: user?.rank || "", requestedAt: nowIso(), status: "pending" });
+        await saveTournament(t);
+        renderAll();
+        msg.className = "success";
+        msg.textContent = "Join request sent to team captain.";
+        return;
+      }
       join.teamId = team.id;
       join.teamName = team.name;
     }
@@ -2194,7 +2250,7 @@ function initSchedulePage() {
       return `<svg width="${CONNECTOR_W}" height="${h}" class="b-connector-svg">${lines.join("")}</svg>`;
     }
 
-    let html = `<div class="b-view"><div style="text-align:center;margin-bottom:12px"><span class="tag" style="font-size:.7rem;text-transform:uppercase;letter-spacing:1px;opacity:.6">— Preview — Bracket will auto-generate from your matches</span></div><div class="bracket">`;
+    let html = `<div class="b-view"><div style="text-align:center;margin-bottom:12px"><span style="display:block;font-size:.75rem;text-transform:uppercase;letter-spacing:2px;opacity:.6;padding:8px 16px">— Preview — Bracket will auto-generate from your matches</span></div><div class="bracket">`;
 
     rounds.forEach((round, ri) => {
       html += `<div class="b-round ${ri > 0 ? "b-round-skeleton" : ""}" style="width:${ROUND_W}px">
@@ -2399,6 +2455,7 @@ function initSchedulePage() {
               </select>
             </div>
             <button class="btn" id="saveMatchEdit" style="margin-top:12px;width:100%">Save Changes</button>
+            <button class="btn alt" id="deleteMatchBtn" style="margin-top:8px;width:100%;color:#dc2626;border-color:#dc2626">Delete Match</button>
             <p id="editMatchMsg" class="success" style="margin-top:6px"></p>
           </div>` : ""}
       </div>`;
@@ -2430,6 +2487,19 @@ function initSchedulePage() {
         } catch (e) { document.getElementById("editMatchMsg").className = "error"; document.getElementById("editMatchMsg").textContent = "Save failed: " + e.message; }
       });
 
+      document.getElementById("deleteMatchBtn")?.addEventListener("click", async () => {
+        if (!confirm(`Delete this match (${match.a} vs ${match.b})?`)) return;
+        const all = getTournaments();
+        const tour = all.find(x => x.id === tournamentId);
+        if (!tour) return;
+        tour.matches = (tour.matches || []).filter(x => x.id !== match.id);
+        try {
+          await saveTournament(tour);
+          overlay.remove();
+          render();
+        } catch (e) { document.getElementById("editMatchMsg").className = "error"; document.getElementById("editMatchMsg").textContent = "Delete failed: " + e.message; }
+      });
+
       // Update winner dropdown when teams change
       document.getElementById("editTeamA")?.addEventListener("change", updateWinnerOpts);
       document.getElementById("editTeamB")?.addEventListener("change", updateWinnerOpts);
@@ -2445,7 +2515,7 @@ function initSchedulePage() {
   }
 
   function render() {
-    const selectedId = document.getElementById("scheduleTournamentSelect")?.value || "";
+    const selectedId = document.getElementById("scheduleTournamentSelect")?.value || preselect || "";
     const t = selectedId ? getTournaments().find(x => x.id === selectedId) : null;
 
     if (!getTournaments().length) {
