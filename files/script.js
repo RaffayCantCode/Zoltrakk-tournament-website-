@@ -69,11 +69,14 @@ async function loadTournaments() {
 async function saveTournamentToSupabase(t) {
   t.updatedAt = nowIso();
   const user = _currentUserCache;
+  // Use the original owner from the tournament data, not the current user
+  // This prevents RLS failing when a non-creator joins a team
+  const ownerId = t.ownerUserId || user?.id || null;
   const { error } = await supabaseClient
     .from("tournaments")
     .upsert({
       id: t.id,
-      owner_id: user?.id || null,
+      owner_id: ownerId,
       data: t,
       updated_at: t.updatedAt
     }, { onConflict: "id" });
@@ -86,6 +89,49 @@ async function deleteTournamentFromSupabase(id) {
     .delete()
     .eq("id", id);
   if (error) throw error;
+}
+
+let _leaderboardCache = [];
+
+function getLeaderboardEntries() { return _leaderboardCache; }
+
+async function loadLeaderboardEntries() {
+  const { data, error } = await supabaseClient
+    .from("leaderboard_entries")
+    .select("*")
+    .order("rank", { ascending: true, nullsLast: true })
+    .order("wins", { ascending: false });
+  if (error) { console.error("Failed to load leaderboard:", error); _leaderboardCache = []; return []; }
+  _leaderboardCache = data || [];
+  return _leaderboardCache;
+}
+
+async function saveLeaderboardEntry(entry) {
+  const user = _currentUserCache;
+  const payload = {
+    id: entry.id,
+    team_name: entry.team_name,
+    game: entry.game || "",
+    wins: entry.wins || 0,
+    losses: entry.losses || 0,
+    rank: entry.rank || 0,
+    notes: entry.notes || "",
+    updated_by: user?.id || null
+  };
+  const { error } = await supabaseClient
+    .from("leaderboard_entries")
+    .upsert(payload, { onConflict: "id" });
+  if (error) throw error;
+  await loadLeaderboardEntries();
+}
+
+async function deleteLeaderboardEntry(id) {
+  const { error } = await supabaseClient
+    .from("leaderboard_entries")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+  await loadLeaderboardEntries();
 }
 
 // ── Auth Layer ────────────────────────────────────────────────
@@ -247,6 +293,24 @@ function unsubscribeFromTournaments() {
   if (_tournamentChannel) {
     supabaseClient.removeChannel(_tournamentChannel);
     _tournamentChannel = null;
+  }
+}
+
+let _leaderboardChannel = null;
+
+function subscribeToLeaderboard(onUpdate) {
+  if (_leaderboardChannel) return;
+  _leaderboardChannel = supabaseClient.channel("leaderboard-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "leaderboard_entries" }, () => {
+      loadLeaderboardEntries().then(() => { if (onUpdate) onUpdate(); });
+    })
+    .subscribe();
+}
+
+function unsubscribeFromLeaderboard() {
+  if (_leaderboardChannel) {
+    supabaseClient.removeChannel(_leaderboardChannel);
+    _leaderboardChannel = null;
   }
 }
 
@@ -1346,10 +1410,17 @@ function initTournamentDetailPage() {
         return;
       }
       renderDetailWithAccessCheck(t, root);
-    })();
-    return;
+  })();
+  return;
   }
   renderDetailWithAccessCheck(t, root);
+  subscribeToTournaments(() => {
+    const fresh = fetchTournamentFromStore();
+    if (fresh && fresh.updatedAt !== t.updatedAt) {
+      t = fresh;
+      renderDetailWithAccessCheck(t, root);
+    }
+  });
 }
 
 function renderDetail(t) {
@@ -2355,7 +2426,10 @@ function initSchedulePage() {
     const t = selectedId ? getTournaments().find(x => x.id === selectedId) : null;
 
     if (!getTournaments().length) {
-      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0">No tournaments exist yet. <a href="create.html">Create one</a> to get started.</p></div>`;
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0">No tournaments exist yet. <a href="create.html">Create one</a> to get started.</p></div>
+        <div style="margin-top:20px;overflow-x:auto;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
+          ${renderSkeletonBracket()}
+        </div>`;
       return;
     }
 
@@ -2363,6 +2437,9 @@ function initSchedulePage() {
       root.innerHTML = `<div class="card" style="padding:20px">${buildToolbar()}</div>
         <div class="card" style="padding:32px;text-align:center;margin-top:16px">
           <p style="margin:0;color:var(--muted)">Select a tournament to view its bracket.</p>
+        </div>
+        <div style="margin-top:20px;overflow-x:auto;padding:8px 4px 16px;border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);border:1px solid var(--border)">
+          ${renderSkeletonBracket()}
         </div>`;
       bindToolbar();
       return;
@@ -2617,15 +2694,17 @@ function initAdminPage() {
 
       showLoading(root, "Loading admin panel...");
 
-      const [profilesRes, toursRes, msgsRes] = await Promise.all([
+      const [profilesRes, toursRes, msgsRes, lbRes] = await Promise.all([
         supabaseClient.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
         supabaseClient.from("tournaments").select("*").order("created_at", { ascending: false }).limit(200),
-        supabaseClient.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100)
+        supabaseClient.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100),
+        supabaseClient.from("leaderboard_entries").select("*").order("rank", { ascending: true, nullsLast: true }).order("wins", { ascending: false }).limit(200)
       ]);
 
       const allProfiles = profilesRes.data || [];
       const allTours = toursRes.data || [];
       const allMsgs = msgsRes.data || [];
+      const allLb = lbRes.data || [];
 
       const activeTab = new URLSearchParams(location.search).get("tab") || "dashboard";
 
@@ -2636,6 +2715,7 @@ function initAdminPage() {
           <button class="btn ${activeTab === "users" ? "" : "alt"}" onclick="location.href='admin.html?tab=users'">Users (${allProfiles.length})</button>
           <button class="btn ${activeTab === "tournaments" ? "" : "alt"}" onclick="location.href='admin.html?tab=tournaments'">Tournaments (${allTours.length})</button>
           <button class="btn ${activeTab === "messages" ? "" : "alt"}" onclick="location.href='admin.html?tab=messages'">Messages (${allMsgs.length})</button>
+          <button class="btn ${activeTab === "leaderboard" ? "" : "alt"}" onclick="location.href='admin.html?tab=leaderboard'">Leaderboard (${allLb.length})</button>
         </div>
         <div id="adminTabContent"></div>`;
 
@@ -2768,6 +2848,101 @@ function initAdminPage() {
           };
         });
       }
+
+      else if (activeTab === "leaderboard") {
+        const games = ["", "League of Legends", "Valorant", "CS2", "Overwatch"];
+        content.innerHTML = `
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+            <div style="padding:14px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),color-mix(in srgb,var(--primary) 6%,var(--surface)));border-bottom:1px solid var(--border)">
+              <h3 style="margin:0;font-size:.9rem;text-transform:uppercase;letter-spacing:1px">Leaderboard Entries</h3>
+            </div>
+            <div class="table-wrap" style="border:none">
+              <table>
+                <tr><th>Rank</th><th>Team</th><th>Game</th><th>Wins</th><th>Losses</th><th>Notes</th><th>Actions</th></tr>
+                ${allLb.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No entries yet</td></tr>' : allLb.map(e => `
+                  <tr>
+                    <td>${e.rank || "-"}</td>
+                    <td><strong>${esc(e.team_name)}</strong></td>
+                    <td>${esc(e.game || "-")}</td>
+                    <td>${e.wins}</td>
+                    <td>${e.losses}</td>
+                    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem;color:var(--muted)">${esc(e.notes || "")}</td>
+                    <td style="white-space:nowrap">
+                      <button class="btn alt" style="padding:4px 10px;font-size:.78rem" data-edit-lb="${e.id}">Edit</button>
+                      <button class="btn alt" style="padding:4px 10px;font-size:.78rem;color:#dc2626" data-del-lb="${e.id}">Delete</button>
+                    </td>
+                  </tr>`).join("")}
+              </table>
+            </div>
+          </div>
+          <div class="card" style="padding:20px">
+            <h3 style="margin:0 0 10px;font-size:.9rem;text-transform:uppercase;letter-spacing:1px">Add / Edit Entry</h3>
+            <form id="lbForm" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div><label>Team Name</label><input id="lbTeamName" required></div>
+              <div><label>Game</label><select id="lbGame">${games.map(g => `<option value="${g}">${g || "— Any —"}</option>`).join("")}</select></div>
+              <div><label>Wins</label><input id="lbWins" type="number" min="0" value="0"></div>
+              <div><label>Losses</label><input id="lbLosses" type="number" min="0" value="0"></div>
+              <div><label>Rank Position</label><input id="lbRank" type="number" min="0" placeholder="0 = auto"></div>
+              <div style="grid-column:1/-1"><label>Notes (optional)</label><input id="lbNotes" placeholder="e.g. Tournament champion, Season MVP..."></div>
+              <div style="grid-column:1/-1;display:flex;gap:10px">
+                <button class="btn" id="lbSaveBtn">Save Entry</button>
+                <button class="btn alt" id="lbClearBtn" type="button">Clear Form</button>
+              </div>
+              <p id="lbMsg" class="error" style="grid-column:1/-1;margin:4px 0 0"></p>
+            </form>
+          </div>`;
+
+        content.querySelectorAll("[data-del-lb]").forEach(b => {
+          b.onclick = async () => {
+            if (!confirm("Delete this leaderboard entry?")) return;
+            try {
+              await deleteLeaderboardEntry(b.dataset.delLb);
+              location.reload();
+            } catch { alert("Failed to delete."); }
+          };
+        });
+
+        content.querySelectorAll("[data-edit-lb]").forEach(b => {
+          b.onclick = () => {
+            const entry = allLb.find(e => e.id === b.dataset.editLb);
+            if (!entry) return;
+            document.getElementById("lbTeamName").value = entry.team_name || "";
+            document.getElementById("lbGame").value = entry.game || "";
+            document.getElementById("lbWins").value = entry.wins || 0;
+            document.getElementById("lbLosses").value = entry.losses || 0;
+            document.getElementById("lbRank").value = entry.rank || 0;
+            document.getElementById("lbNotes").value = entry.notes || "";
+            document.getElementById("lbForm").dataset.editId = entry.id;
+            document.querySelector("#lbForm h3, .card h3").textContent = "Edit Entry";
+          };
+        });
+
+        document.getElementById("lbClearBtn").onclick = () => {
+          document.getElementById("lbForm").reset();
+          delete document.getElementById("lbForm").dataset.editId;
+        };
+
+        document.getElementById("lbSaveBtn").onclick = async () => {
+          const msg = document.getElementById("lbMsg");
+          msg.textContent = "";
+          msg.className = "error";
+          const team_name = document.getElementById("lbTeamName").value.trim();
+          if (!team_name) { msg.textContent = "Team name is required."; return; }
+          const entry = {
+            id: document.getElementById("lbForm").dataset.editId || undefined,
+            team_name,
+            game: document.getElementById("lbGame").value,
+            wins: parseInt(document.getElementById("lbWins").value) || 0,
+            losses: parseInt(document.getElementById("lbLosses").value) || 0,
+            rank: parseInt(document.getElementById("lbRank").value) || 0,
+            notes: document.getElementById("lbNotes").value.trim()
+          };
+          try {
+            await saveLeaderboardEntry(entry);
+            location.reload();
+          } catch (err) { msg.textContent = "Failed to save: " + err.message; }
+        };
+      }
     } catch (err) {
       root.innerHTML = `<div class="card" style="padding:24px;text-align:center">
         <p class="error" style="margin:0 0 8px">Failed to load admin data.</p>
@@ -2787,8 +2962,10 @@ function initLeaderboardPage() {
     const game = document.getElementById("lbGameFilter")?.value || "";
     const query = (document.getElementById("lbSearch")?.value || "").toLowerCase();
     const tournaments = getTournaments();
+    const manualEntries = getLeaderboardEntries();
     const teamScores = {};
 
+    // Computed entries from completed matches
     tournaments.forEach(t => {
       if (game && t.game !== game) return;
       (t.matches || []).forEach(m => {
@@ -2796,7 +2973,7 @@ function initLeaderboardPage() {
         const winner = m.winner.trim();
         if (!winner) return;
         if (!teamScores[winner]) {
-          teamScores[winner] = { name: winner, wins: 0, games: new Set(), tournaments: new Set() };
+          teamScores[winner] = { name: winner, wins: 0, games: new Set(), tournaments: new Set(), source: "computed" };
         }
         teamScores[winner].wins++;
         teamScores[winner].games.add(t.game);
@@ -2804,12 +2981,33 @@ function initLeaderboardPage() {
       });
     });
 
+    // Overlay with manual entries from admin
+    manualEntries.forEach(e => {
+      if (game && e.game && e.game !== game) return;
+      const key = e.team_name;
+      if (!teamScores[key]) {
+        teamScores[key] = { name: key, wins: 0, games: new Set(), tournaments: new Set(), source: "manual", rank: e.rank };
+      } else {
+        teamScores[key].source = "manual";
+        teamScores[key].rank = e.rank || teamScores[key].rank;
+      }
+      if (e.wins > teamScores[key].wins) teamScores[key].wins = e.wins;
+      if (e.game && !teamScores[key].games.has(e.game)) teamScores[key].games.add(e.game);
+    });
+
     let sorted = Object.values(teamScores);
     if (query) sorted = sorted.filter(s => s.name.toLowerCase().includes(query));
-    sorted.sort((a, b) => b.wins - a.wins || a.name.localeCompare(b.name));
+
+    // Sort: manual entries by rank first (rank > 0), then by wins desc
+    sorted.sort((a, b) => {
+      const aRank = a.rank || 999;
+      const bRank = b.rank || 999;
+      if (aRank !== bRank) return aRank - bRank;
+      return b.wins - a.wins || a.name.localeCompare(b.name);
+    });
 
     if (!sorted.length) {
-      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0;color:var(--muted)">No completed matches yet. Complete matches appear here with rankings.</p></div>`;
+      root.innerHTML = `<div class="card" style="padding:24px;text-align:center"><p style="margin:0;color:var(--muted)">No rankings yet. Complete matches or an admin can add entries.</p></div>`;
       return;
     }
 
@@ -2837,6 +3035,7 @@ function initLeaderboardPage() {
   };
 
   ["lbGameFilter", "lbSearch"].forEach(id => document.getElementById(id)?.addEventListener("input", render));
+  loadLeaderboardEntries().then(() => { render(); subscribeToLeaderboard(render); });
   render();
   subscribeToTournaments(render);
 }
@@ -2858,12 +3057,12 @@ function initProfilePage() {
 
   showLoading(root, "Loading profile...");
 
-  const GAMES = ["League of Legends", "Valorant", "CS2", "Overwatch 2"];
+  const GAMES = ["League of Legends", "Valorant", "CS2", "Overwatch"];
   const RANKS = {
     "League of Legends": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Master", "Grandmaster", "Challenger"],
     "Valorant": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"],
     "CS2": ["Silver", "Silver Elite", "Gold Nova", "Master Guardian", "AK-47", "AWP", "Supreme", "Global Elite"],
-    "Overwatch 2": ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Champion"]
+    "Overwatch": ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Champion"]
   };
   const LOOKING_FOR_OPTIONS = [
     { value: "both", label: "Both Casual & Competitive" },

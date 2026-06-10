@@ -133,9 +133,9 @@ CREATE POLICY "Authenticated users can create tournaments"
   ON tournaments FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Owners can update their tournaments"
+CREATE POLICY "Authenticated users can update tournaments"
   ON tournaments FOR UPDATE
-  USING (auth.uid() = owner_id);
+  USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Owners can delete their tournaments"
   ON tournaments FOR DELETE
@@ -206,6 +206,48 @@ CREATE POLICY "Anyone can insert contact messages"
 CREATE POLICY "Authenticated users can view contact messages"
   ON contact_messages FOR SELECT
   USING (auth.role() = 'authenticated');
+
+-- ============================================================
+-- LEADERBOARD ENTRIES
+-- Admins can manually add/edit/delete leaderboard entries
+-- ============================================================
+CREATE TABLE leaderboard_entries (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_name TEXT NOT NULL,
+  game TEXT NOT NULL DEFAULT '',
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  rank INTEGER DEFAULT 0,
+  notes TEXT DEFAULT '',
+  updated_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE leaderboard_entries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view leaderboard entries"
+  ON leaderboard_entries FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can insert leaderboard entries"
+  ON leaderboard_entries FOR INSERT
+  WITH CHECK (is_user_admin(auth.uid()));
+
+CREATE POLICY "Admins can update leaderboard entries"
+  ON leaderboard_entries FOR UPDATE
+  USING (is_user_admin(auth.uid()));
+
+CREATE POLICY "Admins can delete leaderboard entries"
+  ON leaderboard_entries FOR DELETE
+  USING (is_user_admin(auth.uid()));
+
+CREATE TRIGGER on_leaderboard_entries_updated
+  BEFORE UPDATE ON leaderboard_entries
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Enable realtime for leaderboard_entries
+ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS leaderboard_entries;
 
 -- ============================================================
 -- ADMIN MANAGEMENT FUNCTIONS
