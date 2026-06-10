@@ -4139,8 +4139,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (tournamentsCard) showLoading(tournamentsCard, "Loading tournaments...");
 
   await initSupabase();
+  await loadCurrentUser();
   await Promise.all([
-    loadCurrentUser(),
     loadTournaments(),
     loadUserPlayers(),
     loadAllPlayers()
