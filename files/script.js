@@ -1618,6 +1618,23 @@ function renderDetail(t) {
       <div id="joinRequestsList"></div>
     </div>` : ""}
 
+    ${/* ── REMOVED PLAYERS (admin only) ── */""}
+    ${isAdmin && t.removedPlayers && t.removedPlayers.length > 0 ? `<div class="card" style="padding:20px 22px;margin-bottom:18px">
+      <h3>Removed Players</h3>
+      <p class="hint-text" style="margin-top:0">The following players were removed from teams and are blocked from rejoining. Click "Allow Rejoin" to unblock them.</p>
+      <div id="removedPlayersList">
+        ${t.removedPlayers.map((p) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));border-radius:8px;margin-bottom:4px">
+            <div>
+              <strong>${esc(p.name)}</strong>
+              <span class="hint-text" style="margin-left:8px">Removed ${p.removedAt ? new Date(p.removedAt).toLocaleString() : ""}</span>
+            </div>
+            <button class="btn alt" data-allow-rejoin="${esc(p.name)}" style="padding:5px 12px;font-size:.78rem;color:var(--primary);border-color:var(--primary)">Allow Rejoin</button>
+          </div>
+        `).join("")}
+      </div>
+    </div>` : ""}
+
     ${/* ── TEAMS ── */""}
     <div class="card" style="padding:20px 22px;margin-bottom:18px">
       <h3>Teams <span class="badge" style="font-size:.75rem;vertical-align:middle;margin-left:8px">${teamCount}</span></h3>
@@ -1983,7 +2000,21 @@ function renderDetail(t) {
     });
   };
 
-  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); renderJoinRequests(); renderSquadQuickSelect(); };
+  const renderRemovedPlayers = () => {
+    const list = document.getElementById("removedPlayersList");
+    if (!list) return;
+    list.querySelectorAll("[data-allow-rejoin]").forEach((b) => {
+      b.onclick = async () => {
+        const nameToUnblock = b.dataset.allowRejoin.toLowerCase();
+        t.removedPlayers = t.removedPlayers.filter((p) => p.name !== nameToUnblock);
+        await saveTournament(t);
+        renderDetail(t);
+        showToast(`Player ${b.dataset.allowRejoin} is now allowed to rejoin!`, "success");
+      };
+    });
+  };
+
+  const renderAll = () => { renderJoinDynamic(); renderTeams(); renderMatches(); renderJoinRequests(); renderSquadQuickSelect(); renderRemovedPlayers(); };
   renderAll();
 
   const applyJoin = (join) => {
